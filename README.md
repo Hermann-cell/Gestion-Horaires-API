@@ -226,7 +226,7 @@ Configuration TypeScript :
 # ⚙️ Installation
 
 ```bash
-git clone https://github.com/ton-repo.git
+git clone https://github.com/Hermann-cell/Gestion-Horaires-API.git
 cd gestion-horaire-api
 npm install
 ```
