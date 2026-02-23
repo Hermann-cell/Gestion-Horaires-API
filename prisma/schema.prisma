@@ -14,7 +14,156 @@ datasource db {
 }
 
 model User {
-  id    Int     @id @default(autoincrement())
-  name  String
-  email String  @unique
+  id           Int    @id @default(autoincrement())
+  nom          String
+  prenom       String
+  email        String @unique
+  mot_de_passe String @unique
+
+  roleId Int
+  role   Role @relation(fields: [roleId], references: [id])
+}
+
+model Professeur {
+  id        Int    @id @default(autoincrement())
+  nom       String
+  prenom    String
+  matricule String
+
+  seances Seance[]
+
+  specialite_professeurs Specialite_Professeur[]
+
+  disponibilite_professeurs Disponibilite_Professeur[]
+}
+
+model Role {
+  id          Int    @id @default(autoincrement())
+  nom         String
+  description String
+
+  users User[]
+}
+
+model Cours {
+  id           Int     @id @default(autoincrement())
+  nom          String
+  code         String  @unique
+  duree        Int
+  etape        Int
+  est_harchive Boolean @default(false)
+
+  seances          Seance[]
+  cours_programmes Cours_Programme[]
+}
+
+model Programme {
+  id          Int    @id @default(autoincrement())
+  nom         String
+  description String
+
+  cours_programmes Cours_Programme[]
+}
+
+model Salle {
+  id       Int    @id @default(autoincrement())
+  code     String
+  capacite Int
+
+  typeDeSalleId Int
+  typeDeSalle   TypeDeSalle @relation(fields: [typeDeSalleId], references: [id])
+
+  seances Seance[]
+}
+
+model TypeDeSalle {
+  id          Int    @id @default(autoincrement())
+  nom         String
+  description String
+
+  salles Salle[]
+}
+
+model Specialite {
+  id  Int    @id @default(autoincrement())
+  nom String
+
+  specialite_professeurs Specialite_Professeur[]
+}
+
+model Disponibilite {
+  id   Int    @id @default(autoincrement())
+  jour String
+
+  disponibilite_professeurs Disponibilite_Professeur[]
+
+  plageHoraire_Disponibilites PlageHoraire_Disponibilite[]
+}
+
+model Seance {
+  id   Int      @id @default(autoincrement())
+  date DateTime
+
+  coursId Int
+  cours   Cours @relation(fields: [coursId], references: [id])
+
+  salleId Int
+  salle   Salle @relation(fields: [salleId], references: [id])
+
+  professeurId Int
+  professeur   Professeur @relation(fields: [professeurId], references: [id])
+
+  plageHoraireId Int
+  plageHoraire   PlageHoraire @relation(fields: [plageHoraireId], references: [id])
+}
+
+model PlageHoraire {
+  id          Int      @id @default(autoincrement())
+  heure_debut DateTime
+  heure_fin   DateTime
+  statut      Boolean  @default(false)
+
+  seances Seance[]
+
+  plageHoraire_Disponibilites PlageHoraire_Disponibilite[]
+}
+
+model Cours_Programme {
+  id Int @id @default(autoincrement())
+
+  coursId Int
+  cours   Cours @relation(fields: [coursId], references: [id])
+
+  programmeId Int
+  programme   Programme @relation(fields: [programmeId], references: [id])
+}
+
+model Specialite_Professeur {
+  id Int @id @default(autoincrement())
+
+  specialiteId Int
+  specialite   Specialite @relation(fields: [specialiteId], references: [id])
+
+  professeurId Int
+  professeur   Professeur @relation(fields: [professeurId], references: [id])
+}
+
+model Disponibilite_Professeur {
+  id Int @id @default(autoincrement())
+
+  disponibiliteId Int
+  disponibilite   Disponibilite @relation(fields: [disponibiliteId], references: [id])
+
+  professeurId Int
+  professeur   Professeur @relation(fields: [professeurId], references: [id])
+}
+
+model PlageHoraire_Disponibilite {
+  id Int @id @default(autoincrement())
+
+  plageHoraireId Int
+  plageHoraire   PlageHoraire @relation(fields: [plageHoraireId], references: [id])
+
+  disponibiliteId Int
+  disponibilite   Disponibilite @relation(fields: [disponibiliteId], references: [id])
 }
