@@ -24,22 +24,26 @@ export async function getUser(
   return reply.send(user);
 }
 
+type CreateUserBody = {
+  nom: string;
+  prenom: string;
+  email: string;
+  mot_de_passe: string;
+  roleId: number;
+};
+
 export async function createUser(
-  request: FastifyRequest<{ Body: { name: string; email: string } }>,
+  request: FastifyRequest<{ Body: CreateUserBody }>,
   reply: FastifyReply
 ) {
-  const user = await service.createUser(
-    request.server,
-    request.body
-  );
-
+  const user = await service.createUser(request.server, request.body);
   return reply.code(201).send(user);
 }
 
 export async function updateUser(
   request: FastifyRequest<{
     Params: { id: string };
-    Body: { name?: string; email?: string };
+    Body: { nom?: string; prenom?: string; email?: string; mot_de_passe?: string; roleId?: number };
   }>,
   reply: FastifyReply
 ) {
@@ -63,4 +67,17 @@ export async function deleteUser(
   await service.deleteUser(request.server, id);
 
   return reply.code(204).send();
+}
+
+export async function getAllUsers(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const users = await service.getAllUsers(request.server);
+    return reply.send(users);
+  } catch (e) {
+    request.log.error(e);
+    return reply.code(500).send({ message: "Internal server error" });
+  }
 }
