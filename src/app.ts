@@ -23,6 +23,7 @@ export function buildApp() {
   app.register(userRoutes, { prefix: "/specialite_professeur" });
   app.register(userRoutes, { prefix: "/typeSalle" });
   app.register(userRoutes, { prefix: "/utilisateur" });
+  
 
 
   

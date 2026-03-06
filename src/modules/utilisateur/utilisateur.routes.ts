@@ -7,4 +7,6 @@ export async function userRoutes(fastify: FastifyInstance) {
   fastify.post("/", controller.createUser);
   fastify.put("/:id", controller.updateUser);
   fastify.delete("/:id", controller.deleteUser);
+  
 }
+
