@@ -1,10 +1,10 @@
 import { FastifyInstance } from "fastify";
-import * as controller from "./salle.controller.js";
+import { getAllSalles } from "./salle.controller.js";
+import { editSalle } from "./salle.controller.js";
+import { getSalle } from "./salle.controller.js";
 
-export async function salleRoutes(fastify: FastifyInstance) {
-  // POST /salle  => créer une salle
-  fastify.post("/", controller.createSalle);
-
-  // DELETE /salle/:id => supprimer une salle
-  fastify.delete("/:id", controller.deleteSalle);
+export async function salleRoutes(app: FastifyInstance) {
+  app.get("/", getAllSalles);
+  app.put("/:id", editSalle); 
+  app.get("/:id", getSalle);
 }

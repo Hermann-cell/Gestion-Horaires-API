@@ -1,66 +1,59 @@
-import { FastifyInstance } from "fastify";
 
-export type CreateSalleDTO = {
-  code: string;
-  capacite: number;
-  typeDeSalleId: number;
+import { FastifyInstance } from "fastify";
+import type { Prisma } from "../../../generated/prisma/client.js";
+
+//API qui retoune la liste des salles
+export type SalleFilters = {
+  code?: string;
+  typeDeSalleId?: string;
 };
 
-export async function createSalle(
-  fastify: FastifyInstance,
-  data: CreateSalleDTO
-) {
-  // (Optionnel) empêcher les doublons de code
-  const existing = await fastify.prisma.salle.findFirst({
-    where: { code: data.code },
-  });
+export async function listSalles(app: FastifyInstance, filters: SalleFilters = {}) {
+  const { code, typeDeSalleId } = filters;
 
-  if (existing) {
-    const err: any = new Error("Salle code already exists");
-    err.statusCode = 409;
-    err.code = "SALLE_CODE_EXISTS";
-    throw err;
+  const where: Prisma.SalleWhereInput = {};
+  if (code && code.trim() !== "") {
+    where.code = { contains: code.trim(), mode: "insensitive" };
   }
 
-  // Vérifie que le typeDeSalle existe (sinon FK error plus tard)
-  const typeExists = await fastify.prisma.typeDeSalle.findUnique({
-    where: { id: data.typeDeSalleId },
-  });
-
-  if (!typeExists) {
-    const err: any = new Error("TypeDeSalle not found");
-    err.statusCode = 400;
-    err.code = "TYPE_SALLE_NOT_FOUND";
-    throw err;
+  if (typeDeSalleId && typeDeSalleId.trim() !== "") {
+    where.typeDeSalleId = Number(typeDeSalleId);
   }
 
-  return fastify.prisma.salle.create({
-    data: {
-      code: data.code,
-      capacite: data.capacite,
-      typeDeSalleId: data.typeDeSalleId,
-    },
-    include: {
-      typeDeSalle: true, // pratique pour renvoyer le type dans la réponse
-    },
+  return app.prisma.salle.findMany({
+    where,
+    include: { typeDeSalle: true },
+    orderBy: { id: "asc" },
   });
 }
-export async function deleteSalle(
-  fastify: FastifyInstance,
-  id: number
+
+// API d’édition de la salle
+export type UpdateSallePayload = {
+  code?: string;
+  capacite?: number;
+  typeDeSalleId?: number;
+};
+
+export async function updateSalle(
+  app: FastifyInstance,
+  id: number,
+  data: UpdateSallePayload
 ) {
-  const salle = await fastify.prisma.salle.findUnique({
+  return app.prisma.salle.update({
     where: { id },
+    data: {
+      ...(data.code !== undefined ? { code: data.code } : {}),
+      ...(data.capacite !== undefined ? { capacite: data.capacite } : {}),
+      ...(data.typeDeSalleId !== undefined ? { typeDeSalleId: data.typeDeSalleId } : {}),
+    },
+    include: { typeDeSalle: true },
   });
+}
 
-  if (!salle) {
-    const err: any = new Error("Salle not found");
-    err.statusCode = 404;
-    err.code = "SALLE_NOT_FOUND";
-    throw err;
-  }
-
-  return fastify.prisma.salle.delete({
+// API détail d'une salle
+export async function getSalleById(app: FastifyInstance, id: number) {
+  return app.prisma.salle.findUnique({
     where: { id },
+    include: { typeDeSalle: true },
   });
 }
