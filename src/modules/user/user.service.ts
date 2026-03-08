@@ -47,6 +47,7 @@ export async function loginUser(
   email: string,
   mot_de_passe: string
 ) {
+
   const user = await fastify.prisma.user.findUnique({
     where: { email },
     include: { role: true },
@@ -57,18 +58,27 @@ export async function loginUser(
   }
 
   const valid = await bcrypt.compare(mot_de_passe, user.mot_de_passe);
+
   if (!valid) {
     throw new Error("Mot de passe incorrect");
   }
 
-  // Générer le JWT
   const token = fastify.jwt.sign({
     id: user.id,
     email: user.email,
     role: user.role.nom,
   });
 
-  return { token, user };
+  return {
+    token,
+    user: {
+      id: user.id,
+      nom: user.nom,
+      prenom: user.prenom,
+      email: user.email,
+      role: user.role.nom
+    }
+  };
 }
 
 // Mettre à jour un user
