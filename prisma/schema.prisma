@@ -117,7 +117,7 @@ model Programme {
 
 model Salle {
   id       Int    @id @default(autoincrement())
-  code     String
+  code     String @unique
   capacite Int
 
   typeDeSalleId Int         @map("type_de_salle_id")
@@ -125,7 +125,6 @@ model Salle {
 
   seances Seance[]
 
-  // Champs de traçabilité
   creerPar    String?
   modifierPar String?
   supprimePar String?
@@ -138,12 +137,11 @@ model Salle {
 
 model TypeDeSalle {
   id          Int    @id @default(autoincrement())
-  nom         String
+  nom         String @unique
   description String?
 
   salles Salle[]
 
-  // Champs de traçabilité
   creerPar    String?
   modifierPar String?
   supprimePar String?
