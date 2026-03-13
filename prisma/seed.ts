@@ -86,21 +86,21 @@ async function main() {
 
   const users = [
     {
-      nom: "Liliane",
+      nom: "Kana",
       prenom: "Liliane",
-      email: "liliane@email.com",
+      email: "liliane@gmail.com",
       roleNom: "Administrateur",
     },
     {
-      nom: "Hermann",
+      nom: "Njeutsa",
       prenom: "Hermann",
-      email: "hermann@email.com",
+      email: "hermann@gmail.com",
       roleNom: "Responsable administratif",
     },
     {
-      nom: "Albert",
+      nom: "Boyomo",
       prenom: "Albert",
-      email: "albert@email.com",
+      email: "albert@gmail.com",
       roleNom: "Administrateur",
     },
   ];
@@ -122,6 +122,7 @@ async function main() {
         prenom: u.prenom,
         email: u.email,
         mot_de_passe: hashedPwd,
+        statut: true,
         roleId: role.id,
         creerPar: "system",
         creerLe: new Date(),
@@ -159,7 +160,6 @@ async function main() {
   SEED SALLES
   ===========================
   */
-
   console.log("Seeding rooms...");
 
   for (const room of INITIAL_ROOMS) {
@@ -167,14 +167,25 @@ async function main() {
       where: { nom: room.type },
     });
 
-    if (!type) throw new Error(`Type de salle ${room.type} introuvable`);
+    if (!type) {
+      throw new Error(`Type de salle "${room.type}" introuvable`);
+    }
 
     await prisma.salle.upsert({
       where: { code: room.code },
-      update: {},
+      update: {
+        nom: room.name,
+        capacite: room.capacity,
+        description: room.description || null,
+        typeDeSalleId: type.id,
+        modifierPar: "system",
+        modifierLe: new Date(),
+      },
       create: {
         code: room.code,
+        nom: room.name,
         capacite: room.capacity,
+        description: room.description || null,
         typeDeSalleId: type.id,
         creerPar: "system",
         creerLe: new Date(),

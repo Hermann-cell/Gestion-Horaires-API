@@ -19,7 +19,7 @@ model User {
   prenom       String
   email        String @unique
   mot_de_passe String // Note: In a production application, consider hashing passwords for security.
-
+  statut       Boolean @default(false)
   roleId Int  @map("role_id")
   role   Role @relation(fields: [roleId], references: [id])
 
@@ -119,7 +119,9 @@ model Salle {
   id       Int    @id @default(autoincrement())
   code     String @unique
   capacite Int
-
+  nom         String
+  description String?
+  
   typeDeSalleId Int         @map("type_de_salle_id")
   typeDeSalle   TypeDeSalle @relation(fields: [typeDeSalleId], references: [id])
 
