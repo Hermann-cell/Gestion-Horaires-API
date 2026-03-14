@@ -7,6 +7,10 @@ import cors from "@fastify/cors";
 // Routes
 import { userRoutes } from "./modules/user/user.routes.js";
 import { salleRoutes } from "./modules/salle/salle.routes.js";
+import { professeurRoutes } from "./modules/professeur/professeur.routes.js";
+import { coursRoutes } from "./modules/cours/cours.routes.js";
+import { programmeRoutes } from "./modules/programme/programme.routes.js";
+
 
 // Middleware
 import { authenticate } from "./modules/middlewares/authenticate.js";
@@ -47,14 +51,14 @@ export function buildApp() {
    //NB: On peut décommenter les routes au fur et à mesure qu'on les implémente
 
 
-  // app.register(coursRoutes, { prefix: `${API_PREFIX}/cours` });
+  app.register(coursRoutes, { prefix: `${API_PREFIX}/cours` });
   // app.register(cours_programmeRoutes, { prefix: `${API_PREFIX}/cours_programmes` });
   // app.register(disponibiliteRoutes, { prefix: `${API_PREFIX}/disponibilites` });
   // app.register(disponibilite_professeurRoutes, { prefix: `${API_PREFIX}/disponibilite_professeurs` });
   // app.register(plageHoraireRoutes, { prefix: `${API_PREFIX}/plageHoraires` });
   // app.register(plageHoraire_disponibiliteRoutes, { prefix: `${API_PREFIX}/plageHoraire_disponibilites` });
-  // app.register(professeurRoutes, { prefix: `${API_PREFIX}/professeurs` });
-  // app.register(programmeRoutes, { prefix: `${API_PREFIX}/programmes` });
+  app.register(professeurRoutes, { prefix: `${API_PREFIX}/professeurs` });
+  app.register(programmeRoutes, { prefix: `${API_PREFIX}/programmes` });
   app.register(roleRoutes, { prefix: `${API_PREFIX}/roles` });
   app.register(salleRoutes, { prefix: `${API_PREFIX}/salles` });
   // app.register(seanceRoutes, { prefix: `${API_PREFIX}/seances` });
