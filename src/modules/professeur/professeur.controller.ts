@@ -7,6 +7,69 @@ import {
   type UpdateProfesseurPayload,
 } from "./professeur.service.js";
 
+
+import {
+  createProfesseur,
+  CreateProfesseurPayload,
+  getAllProfesseurs,
+} from "./professeur.service.js";
+
+type CreateProfesseurBody = {
+  nom: string;
+  prenom: string;
+  matricule: string;
+};
+
+export async function createProfesseurController(
+  request: FastifyRequest<{ Body: CreateProfesseurBody }>,
+  reply: FastifyReply
+) {
+  try {
+    const { nom, prenom, matricule } = request.body;
+
+    if (!nom || nom.trim() === "") {
+      return reply.code(400).send({ message: "Le nom est obligatoire" });
+    }
+
+    if (!prenom || prenom.trim() === "") {
+      return reply.code(400).send({ message: "Le prénom est obligatoire" });
+    }
+
+    if (!matricule || matricule.trim() === "") {
+      return reply.code(400).send({ message: "Le matricule est obligatoire" });
+    }
+
+    const payload: CreateProfesseurPayload = {
+      nom: nom.trim(),
+      prenom: prenom.trim(),
+      matricule: matricule.trim(),
+    };
+
+    const result = await createProfesseur(request.server, payload);
+
+    return reply.code(201).send(result);
+  } catch (err: any) {
+    request.log.error(err);
+    return reply.code(400).send({
+      message: err.message || "Erreur lors de la création du professeur",
+    });
+  }
+}
+
+export async function getAllProfesseursController(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const result = await getAllProfesseurs(request.server);
+    return reply.send(result);
+  } catch (err) {
+    request.log.error(err);
+    return reply.code(500).send({
+      message: "Erreur lors de la récupération des professeurs",
+    });
+  }
+}
 type ProfesseurParams = {
   id: string;
 };

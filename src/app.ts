@@ -10,6 +10,8 @@ import { salleRoutes } from "./modules/salle/salle.routes.js";
 import { professeurRoutes } from "./modules/professeur/professeur.routes.js";
 import { coursRoutes } from "./modules/cours/cours.routes.js";
 import { programmeRoutes } from "./modules/programme/programme.routes.js";
+import { typeSalleRoutes } from "./modules/typeSalle/typeSalle.routes.js";
+import { specialiteRoutes } from "./modules/specialite/specialite.routes.js";
 
 
 // Middleware
@@ -62,9 +64,9 @@ export function buildApp() {
   app.register(roleRoutes, { prefix: `${API_PREFIX}/roles` });
   app.register(salleRoutes, { prefix: `${API_PREFIX}/salles` });
   // app.register(seanceRoutes, { prefix: `${API_PREFIX}/seances` });
-  // app.register(specialiteRoutes, { prefix: `${API_PREFIX}/specialites` });
+  app.register(specialiteRoutes, { prefix: `${API_PREFIX}/specialites` });
   // app.register(specialite_professeurRoutes, { prefix: `${API_PREFIX}/specialite_professeurs` });
-  // app.register(typeSalleRoutes, { prefix: `${API_PREFIX}/typeSalles` });
+  app.register(typeSalleRoutes, { prefix: `${API_PREFIX}/typeSalles` });
   app.register(userRoutes, { prefix: `${API_PREFIX}/users` });
 
   /*

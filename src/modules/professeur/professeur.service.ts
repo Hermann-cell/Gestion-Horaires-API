@@ -37,6 +37,54 @@ export async function getProfesseurById(app: FastifyInstance, id: number) {
 
 /*
 ================================
+API SERVICE : CREATE PROFESSEUR
+================================
+*/
+
+export type CreateProfesseurPayload = {
+  nom: string;
+  prenom: string;
+  matricule: string;
+};
+
+export async function createProfesseur(
+  app: FastifyInstance,
+  data: CreateProfesseurPayload
+) {
+  const existingMatricule = await app.prisma.professeur.findFirst({
+    where: {
+      matricule: {
+        equals: data.matricule,
+        mode: "insensitive",
+      },
+    },
+  });
+
+  if (existingMatricule) {
+    throw new Error("Un professeur avec ce matricule existe déjà");
+  }
+
+  return app.prisma.professeur.create({
+    data: {
+      nom: data.nom,
+      prenom: data.prenom,
+      matricule: data.matricule,
+    },
+  });
+}
+export async function getAllProfesseurs(app: FastifyInstance) {
+  return app.prisma.professeur.findMany({
+    orderBy: {
+      id: "asc",
+    },
+  });
+}
+
+
+
+
+/*
+================================
 API SERVICE : UPDATE PROFESSEUR
 ================================
 */
