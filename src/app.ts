@@ -4,6 +4,9 @@ import prismaPlugin from "./plugins/prisma.js";
 import fastifyJwt from "@fastify/jwt";
 import cors from "@fastify/cors";
 
+import mailerPlugin from "./plugins/mailer.js";
+import { emailRoutes } from "./modules/email/email.routes.js";
+
 // Routes
 import { userRoutes } from "./modules/user/user.routes.js";
 import { salleRoutes } from "./modules/salle/salle.routes.js";
@@ -23,7 +26,7 @@ export function buildApp() {
 
   // Prisma
   app.register(prismaPlugin);
-
+  app.register(mailerPlugin);
   // JWT
   app.register(fastifyJwt, {
     secret: process.env.JWT_SECRET || "supersecretkey",
@@ -62,6 +65,7 @@ export function buildApp() {
   // app.register(specialite_professeurRoutes, { prefix: `${API_PREFIX}/specialite_professeurs` });
   // app.register(typeSalleRoutes, { prefix: `${API_PREFIX}/typeSalles` });
   app.register(userRoutes, { prefix: `${API_PREFIX}/users` });
+  app.register(emailRoutes, { prefix: `${API_PREFIX}/emails` });
 
   /*
   ===============================
