@@ -5,6 +5,10 @@ import { validateOrReject } from "class-validator";
 import { CreateUserDto } from "./dto/create-user.dto.js";
 import { UpdateUserDto } from "./dto/update-user.dto.js";
 
+import { generateActivationToken } from "../auth/token.service.js";
+import { activationEmailTemplate } from "../email/templates/activation.template.js";
+import { EmailService } from "../email/email.service.js";
+
 // -------------------- Contrôleurs -------------------- //
 
 // Récupérer tous les utilisateurs
@@ -40,19 +44,45 @@ export async function getUser(
   }
 }
 
-// Créer un utilisateur avec DTO + validation
+// Créer un utilisateur avec DTO + validation + envoi email activation
 export async function createUser(
-  request: FastifyRequest<{ Body: CreateUserDto  }>,
+  request: FastifyRequest<{ Body: CreateUserDto }>,
   reply: FastifyReply
 ) {
   try {
-    // Transformer l'objet JS en instance de classe DTO
     const dto = plainToInstance(CreateUserDto, request.body);
-    // Valider les données
     await validateOrReject(dto);
 
     const user = await service.createUser(request.server, dto);
-    return reply.code(201).send(user);
+
+    // -----------------------------
+    // Générer token activation
+    // -----------------------------
+    const token = generateActivationToken(user.id);
+
+    const activationLink = `${process.env.FRONTEND_URL}/activate-account?token=${token}`;
+
+    // -----------------------------
+    // Construire email
+    // -----------------------------
+    const html = activationEmailTemplate(
+      user.nom || "Utilisateur",
+      activationLink
+    );
+
+    const emailService = new EmailService(request.server);
+
+    await emailService.sendEmail({
+      to: user.email,
+      subject: "Activation de votre compte",
+      html
+    });
+
+    return reply.code(201).send({
+      message: "User created. Activation email sent.",
+      user
+    });
+
   } catch (errors) {
     request.log.error(errors);
     return reply.code(400).send({ errors });
