@@ -6,7 +6,7 @@ import jwt from "jsonwebtoken";
 import { EmailService } from "../email/email.service.js";
 import { resetPasswordTemplate } from "../email/templates/reset-password.template.js";
 
-const RESET_SECRET = process.env.RESET_SECRET || "reset_secret";
+const RESET_SECRET  = process.env.ACTIVATION_SECRET || "activation_secret";
 
 // Récupérer tous les users avec leur rôle
 export async function getAllUsers(fastify: FastifyInstance) {
@@ -157,16 +157,19 @@ export async function resetPassword(
   token: string,
   password: string
 ) {
-
+  // Vérification du token
   const payload: any = jwt.verify(token, RESET_SECRET);
 
+  // Hash du mot de passe
   const hashed = await bcrypt.hash(password, 10);
 
+  // Update user + activation automatique
   await fastify.prisma.user.update({
     where: { id: payload.userId },
     data: {
-      mot_de_passe: hashed
-    }
+      mot_de_passe: hashed,
+      statut: true, //  activation automatique
+    },
   });
 
   return { message: "Password updated successfully" };
