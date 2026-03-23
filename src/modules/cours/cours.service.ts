@@ -1,6 +1,19 @@
 import { FastifyInstance } from "fastify";
 import { Prisma } from "../../../generated/prisma/client.js";
 
+/*
+================================
+TYPES
+================================
+*/
+export type CreateCoursPayload = {
+  nom: string;
+  code: string;
+  duree: number;
+  etape: number;
+  creerPar?: string | null;
+};
+
 export type UpdateCoursPayload = {
   nom?: string;
   code?: string;
@@ -12,7 +25,39 @@ export type UpdateCoursPayload = {
 
 /*
 ================================
-API SERVICE : GET COURS BY ID
+CREATE
+================================
+*/
+export async function createCours(
+  app: FastifyInstance,
+  data: CreateCoursPayload
+) {
+  return app.prisma.cours.create({
+    data,
+  });
+}
+
+/*
+================================
+GET ALL
+================================
+*/
+export async function getAllCours(app: FastifyInstance) {
+  return app.prisma.cours.findMany({
+    where: { supprimeLe: null },
+    include: {
+      seances: true,
+      cours_programmes: {
+        include: { programme: true },
+      },
+    },
+    orderBy: { id: "desc" },
+  });
+}
+
+/*
+================================
+GET BY ID
 ================================
 */
 export async function getCoursById(app: FastifyInstance, id: number) {
@@ -24,9 +69,7 @@ export async function getCoursById(app: FastifyInstance, id: number) {
     include: {
       seances: true,
       cours_programmes: {
-        include: {
-          programme: true,
-        },
+        include: { programme: true },
       },
     },
   });
@@ -34,7 +77,7 @@ export async function getCoursById(app: FastifyInstance, id: number) {
 
 /*
 ================================
-API SERVICE : UPDATE COURS
+UPDATE
 ================================
 */
 export async function updateCours(
@@ -45,20 +88,13 @@ export async function updateCours(
   return app.prisma.cours.update({
     where: { id },
     data: {
-      ...("nom" in data ? { nom: data.nom } : {}),
-      ...("code" in data ? { code: data.code } : {}),
-      ...("duree" in data ? { duree: data.duree } : {}),
-      ...("etape" in data ? { etape: data.etape } : {}),
-      ...("est_harchive" in data ? { est_harchive: data.est_harchive } : {}),
-      ...("modifierPar" in data ? { modifierPar: data.modifierPar } : {}),
+      ...data,
       modifierLe: new Date(),
     },
     include: {
       seances: true,
       cours_programmes: {
-        include: {
-          programme: true,
-        },
+        include: { programme: true },
       },
     },
   });
@@ -66,7 +102,7 @@ export async function updateCours(
 
 /*
 ================================
-API SERVICE : DELETE COURS (SOFT DELETE)
+SOFT DELETE
 ================================
 */
 export async function softDeleteCours(
@@ -85,7 +121,7 @@ export async function softDeleteCours(
 
 /*
 ================================
-GESTION DES ERREURS PRISMA
+PRISMA ERROR
 ================================
 */
 export function isPrismaKnownError(

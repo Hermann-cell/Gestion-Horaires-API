@@ -28,7 +28,7 @@ model User {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("User")
@@ -51,7 +51,7 @@ model Professeur {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Professeur")
@@ -69,7 +69,7 @@ model Role {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Role")
@@ -91,7 +91,7 @@ model Cours {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Cours")
@@ -109,7 +109,7 @@ model Programme {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Programme")
@@ -131,7 +131,7 @@ model Salle {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Salle")
@@ -148,7 +148,7 @@ model TypeDeSalle {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("TypeDeSalle")
@@ -165,7 +165,7 @@ model Specialite {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Specialite")
@@ -184,7 +184,7 @@ model Disponibilite {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Disponibilite")
@@ -211,7 +211,7 @@ model Seance {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Seance")
@@ -232,7 +232,7 @@ model PlageHoraire {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("PlageHoraire")
@@ -252,7 +252,7 @@ model Cours_Programme {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Cours_Programme")
@@ -272,7 +272,7 @@ model Specialite_Professeur {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Specialite_Professeur")
@@ -292,7 +292,7 @@ model Disponibilite_Professeur {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("Disponibilite_Professeur")
@@ -312,7 +312,7 @@ model PlageHoraire_Disponibilite {
   modifierPar String?
   supprimePar String?
   creerLe     DateTime? @default(now())
-  modifierLe  DateTime?
+  modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
   @@map("PlageHoraire_Disponibilite")

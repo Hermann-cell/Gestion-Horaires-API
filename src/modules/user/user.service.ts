@@ -2,6 +2,11 @@ import { FastifyInstance } from "fastify";
 import bcrypt from "bcrypt";
 import { CreateUserDto } from "./dto/create-user.dto.js";
 import { UpdateUserDto } from "./dto/update-user.dto.js";
+import jwt from "jsonwebtoken";
+import { EmailService } from "../email/email.service.js";
+import { resetPasswordTemplate } from "../email/templates/reset-password.template.js";
+
+const RESET_SECRET = process.env.RESET_SECRET || "reset_secret";
 
 // Récupérer tous les users avec leur rôle
 export async function getAllUsers(fastify: FastifyInstance) {
@@ -111,4 +116,58 @@ export async function deleteUser(
     where: { id },
     include: { role: true },
   });
+}
+
+// Oublie de mot de passe
+export async function forgotPassword(
+  fastify: FastifyInstance,
+  email: string
+) {
+
+  const user = await fastify.prisma.user.findUnique({
+    where: { email }
+  });
+
+  if (!user) {
+    return;
+  }
+
+  const token = jwt.sign(
+    { userId: user.id },
+    RESET_SECRET,
+    { expiresIn: "1h" }
+  );
+
+  const link = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+  const html = resetPasswordTemplate(link);
+
+  const emailService = new EmailService(fastify);
+
+  await emailService.sendEmail({
+    to: user.email,
+    subject: "Réinitialisation du mot de passe",
+    html
+  });
+}
+
+// Réinitialisation du mot de passe
+export async function resetPassword(
+  fastify: FastifyInstance,
+  token: string,
+  password: string
+) {
+
+  const payload: any = jwt.verify(token, RESET_SECRET);
+
+  const hashed = await bcrypt.hash(password, 10);
+
+  await fastify.prisma.user.update({
+    where: { id: payload.userId },
+    data: {
+      mot_de_passe: hashed
+    }
+  });
+
+  return { message: "Password updated successfully" };
 }
