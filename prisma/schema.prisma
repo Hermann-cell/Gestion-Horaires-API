@@ -14,14 +14,14 @@ datasource db {
 }
 
 model User {
-  id           Int    @id @default(autoincrement())
+  id           Int     @id @default(autoincrement())
   nom          String?
   prenom       String
-  email        String @unique
+  email        String  @unique
   mot_de_passe String // Note: In a production application, consider hashing passwords for security.
   statut       Boolean @default(false)
-  roleId Int  @map("role_id")
-  role   Role @relation(fields: [roleId], references: [id])
+  roleId       Int     @map("role_id")
+  role         Role    @relation(fields: [roleId], references: [id])
 
   // Champs de traçabilité
   creerPar    String?
@@ -35,7 +35,7 @@ model User {
 }
 
 model Professeur {
-  id        Int    @id @default(autoincrement())
+  id        Int     @id @default(autoincrement())
   nom       String?
   prenom    String
   matricule String
@@ -58,8 +58,8 @@ model Professeur {
 }
 
 model Role {
-  id          Int    @id @default(autoincrement())
-  nom         String @unique
+  id          Int     @id @default(autoincrement())
+  nom         String  @unique
   description String?
 
   users User[]
@@ -83,6 +83,12 @@ model Cours {
   etape        Int
   est_harchive Boolean @default(false)
 
+  specialiteId Int?
+  specialite   Specialite? @relation(fields: [specialiteId], references: [id])
+
+  typeDeSalleId Int?         @map("type_de_salle_id")
+  typeDeSalle   TypeDeSalle? @relation(fields: [typeDeSalleId], references: [id])
+
   seances          Seance[]
   cours_programmes Cours_Programme[]
 
@@ -98,7 +104,7 @@ model Cours {
 }
 
 model Programme {
-  id          Int    @id @default(autoincrement())
+  id          Int     @id @default(autoincrement())
   nom         String
   description String?
 
@@ -116,12 +122,12 @@ model Programme {
 }
 
 model Salle {
-  id       Int    @id @default(autoincrement())
-  code     String @unique
-  capacite Int
+  id          Int     @id @default(autoincrement())
+  code        String  @unique
+  capacite    Int
   nom         String
   description String?
-  
+
   typeDeSalleId Int         @map("type_de_salle_id")
   typeDeSalle   TypeDeSalle @relation(fields: [typeDeSalleId], references: [id])
 
@@ -138,11 +144,12 @@ model Salle {
 }
 
 model TypeDeSalle {
-  id          Int    @id @default(autoincrement())
-  nom         String @unique
+  id          Int     @id @default(autoincrement())
+  nom         String  @unique
   description String?
 
   salles Salle[]
+  cours  Cours[]
 
   creerPar    String?
   modifierPar String?
@@ -157,6 +164,8 @@ model TypeDeSalle {
 model Specialite {
   id  Int    @id @default(autoincrement())
   nom String
+
+  cours Cours[]
 
   specialite_professeurs Specialite_Professeur[]
 
@@ -200,8 +209,8 @@ model Seance {
   salleId Int   @map("salle_id")
   salle   Salle @relation(fields: [salleId], references: [id])
 
-  professeurId Int        @map("professeur_id")
-  professeur   Professeur @relation(fields: [professeurId], references: [id])
+  professeurId Int?        @map("professeur_id")
+  professeur   Professeur? @relation(fields: [professeurId], references: [id])
 
   plageHoraireId Int          @map("plage_horaire_id")
   plageHoraire   PlageHoraire @relation(fields: [plageHoraireId], references: [id])
