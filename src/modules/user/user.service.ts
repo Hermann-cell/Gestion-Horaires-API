@@ -11,9 +11,10 @@ const RESET_SECRET  = process.env.ACTIVATION_SECRET || "activation_secret";
 // Récupérer tous les users avec leur rôle
 export async function getAllUsers(fastify: FastifyInstance) {
   return fastify.prisma.user.findMany({
-    orderBy: { id: "asc" },
-    include: { role: true },
-  });
+  where: { supprimeLe: null },
+  orderBy: { id: "asc" },
+  include: { role: true },
+});
 }
 
 // Récupérer un user par id avec son rôle
@@ -21,10 +22,10 @@ export async function getUserById(
   fastify: FastifyInstance,
   id: number
 ) {
-  return fastify.prisma.user.findUnique({
-    where: { id },
-    include: { role: true },
-  });
+  return fastify.prisma.user.findFirst({
+  where: { id, supprimeLe: null },
+  include: { role: true },
+});
 }
 
 // Créer un user
@@ -97,7 +98,6 @@ export async function updateUser(
   // Si le mot de passe est fourni, le hasher
   if (data.mot_de_passe) {
     updateData.mot_de_passe = await bcrypt.hash(data.mot_de_passe, 10);
-    delete updateData.mot_de_passe;
   }
 
   return fastify.prisma.user.update({
@@ -110,10 +110,15 @@ export async function updateUser(
 // Supprimer un user
 export async function deleteUser(
   fastify: FastifyInstance,
-  id: number
+  id: number,
+  supprimePar?: string | null
 ) {
-  return fastify.prisma.user.delete({
+  return fastify.prisma.user.update({
     where: { id },
+    data: {
+      supprimeLe: new Date(),
+      ...(supprimePar !== undefined ? { supprimePar } : {}),
+    },
     include: { role: true },
   });
 }

@@ -38,7 +38,7 @@ model Professeur {
   id        Int     @id @default(autoincrement())
   nom       String?
   prenom    String
-  matricule String
+  matricule String @unique
 
   seances Seance[]
 

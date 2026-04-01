@@ -5,15 +5,12 @@ import {
   getSeanceById,
   updateSeance,
   softDeleteSeance,
-  getCoursActifById,
-  getSalleActiveById,
-  getPlageHoraireActiveById,
-  getProfesseurActifById,
-  findSalleConflict,
-  findProfesseurConflict,
   isPrismaKnownError,
-  type CreateSeancePayload,
-  type UpdateSeancePayload,
+} from "./seance.service.js";
+
+import type {
+  CreateSeancePayload,
+  UpdateSeancePayload,
 } from "./seance.service.js";
 
 type SeanceParams = {
@@ -25,6 +22,7 @@ type CreateSeanceBody = {
   coursId: number;
   salleId: number;
   plageHoraireId: number;
+  professeurId?: number | null;
   creerPar?: string | null;
 };
 
@@ -33,6 +31,7 @@ type UpdateSeanceBody = {
   coursId?: number;
   salleId?: number;
   plageHoraireId?: number;
+  professeurId?: number | null;
   modifierPar?: string | null;
 };
 
@@ -73,77 +72,9 @@ function isValidDateString(value: unknown): boolean {
   return !Number.isNaN(new Date(value).getTime());
 }
 
-function getFrenchDayName(date: Date): string {
-  const jours = [
-    "dimanche",
-    "lundi",
-    "mardi",
-    "mercredi",
-    "jeudi",
-    "vendredi",
-    "samedi",
-  ] as const;
-
-  return jours[date.getUTCDay()] ?? "inconnu";
-}
-
-function professeurHasRequiredSpecialite(
-  professeur: Awaited<ReturnType<typeof getProfesseurActifById>>,
-  requiredSpecialiteId: number
-): boolean {
-  if (!professeur) return false;
-
-  return professeur.specialite_professeurs.some((sp) => {
-    return sp.specialiteId === requiredSpecialiteId;
-  });
-}
-
-function professeurIsAvailableForDay(
-  professeur: Awaited<ReturnType<typeof getProfesseurActifById>>,
-  dayName: string
-): boolean {
-  if (!professeur) return false;
-
-  return professeur.disponibilite_professeurs.some((dp) => {
-    return (
-      dp.disponibilite.supprimeLe === null &&
-      dp.disponibilite.jour.trim().toLowerCase() === dayName
-    );
-  });
-}
-
-function professeurIsAvailableForPlageHoraire(
-  professeur: Awaited<ReturnType<typeof getProfesseurActifById>>,
-  dayName: string,
-  plageHoraireId: number
-): boolean {
-  if (!professeur) return false;
-
-  return professeur.disponibilite_professeurs.some((dp) => {
-    const disponibilite = dp.disponibilite;
-
-    if (
-      disponibilite.supprimeLe !== null ||
-      disponibilite.jour.trim().toLowerCase() !== dayName
-    ) {
-      return false;
-    }
-
-    return disponibilite.plageHoraire_Disponibilites.some((phd) => {
-      return (
-        phd.supprimeLe === null &&
-        phd.plageHoraireId === plageHoraireId &&
-        phd.plageHoraire.supprimeLe === null
-      );
-    });
-  });
-}
-
 /*
 ================================
 API : CREATE SEANCE
-Affectation d’un cours à une salle,
-une date et une plage horaire
 ================================
 */
 export async function addSeance(
@@ -183,6 +114,16 @@ export async function addSeance(
   }
 
   if (
+    body.professeurId !== undefined &&
+    body.professeurId !== null &&
+    !isPositiveInteger(body.professeurId)
+  ) {
+    return reply.code(400).send({
+      message: "Le champ professeurId doit être un entier positif ou null",
+    });
+  }
+
+  if (
     body.creerPar !== undefined &&
     body.creerPar !== null &&
     typeof body.creerPar !== "string"
@@ -203,67 +144,16 @@ export async function addSeance(
   }
 
   try {
-    const date = new Date(body.date);
-
-    const cours = await getCoursActifById(request.server, body.coursId);
-    if (!cours) {
-      return reply.code(404).send({
-        message: "Cours introuvable",
-      });
-    }
-
-    const salle = await getSalleActiveById(request.server, body.salleId);
-    if (!salle) {
-      return reply.code(404).send({
-        message: "Salle introuvable",
-      });
-    }
-
-    const plageHoraire = await getPlageHoraireActiveById(
-      request.server,
-      body.plageHoraireId
-    );
-    if (!plageHoraire) {
-      return reply.code(404).send({
-        message: "Plage horaire introuvable",
-      });
-    }
-
-    if (!cours.typeDeSalleId) {
-      return reply.code(409).send({
-        message: "Le cours n'a pas de type de salle défini",
-      });
-    }
-
-    if (salle.typeDeSalleId !== cours.typeDeSalleId) {
-      return reply.code(409).send({
-        message: "La salle n'est pas compatible avec le type requis du cours",
-      });
-    }
-
-    const salleConflict = await findSalleConflict(request.server, {
-      date,
-      salleId: body.salleId,
-      plageHoraireId: body.plageHoraireId,
-    });
-
-    if (salleConflict) {
-      return reply.code(409).send({
-        message:
-          "La salle est déjà occupée pour cette date et cette plage horaire",
-      });
-    }
-
     const payload: CreateSeancePayload = {
-      date,
+      date: new Date(body.date),
       coursId: body.coursId,
       salleId: body.salleId,
       plageHoraireId: body.plageHoraireId,
+      ...(body.professeurId !== undefined ? { professeurId: body.professeurId } : {}),
+      ...(body.creerPar !== undefined
+        ? { creerPar: normalizeNullableString(body.creerPar) }
+        : {}),
     };
-
-    if (body.creerPar !== undefined) {
-      payload.creerPar = normalizeNullableString(body.creerPar);
-    }
 
     const seance = await createSeance(request.server, payload);
 
@@ -271,8 +161,29 @@ export async function addSeance(
       message: "Séance créée avec succès",
       data: seance,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     request.log.error(error);
+
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({
+        message: error.message,
+      });
+    }
+
+    if (
+      error instanceof Error &&
+      (
+        error.message.includes("compatible") ||
+        error.message.includes("occupée") ||
+        error.message.includes("disponible") ||
+        error.message.includes("spécialité") ||
+        error.message.includes("affecté à une autre séance")
+      )
+    ) {
+      return reply.code(409).send({
+        message: error.message,
+      });
+    }
 
     return reply.code(500).send({
       message: "Erreur interne du serveur",
@@ -397,6 +308,16 @@ export async function editSeance(
   }
 
   if (
+    body.professeurId !== undefined &&
+    body.professeurId !== null &&
+    !isPositiveInteger(body.professeurId)
+  ) {
+    return reply.code(400).send({
+      message: "Le champ professeurId doit être un entier positif ou null",
+    });
+  }
+
+  if (
     body.modifierPar !== undefined &&
     body.modifierPar !== null &&
     typeof body.modifierPar !== "string"
@@ -425,78 +346,20 @@ export async function editSeance(
       });
     }
 
-    const finalDate =
-      body.date !== undefined ? new Date(body.date) : seanceExistante.date;
-    const finalCoursId =
-      body.coursId !== undefined ? body.coursId : seanceExistante.coursId;
-    const finalSalleId =
-      body.salleId !== undefined ? body.salleId : seanceExistante.salleId;
-    const finalPlageHoraireId =
-      body.plageHoraireId !== undefined
-        ? body.plageHoraireId
-        : seanceExistante.plageHoraireId;
-
-    const cours = await getCoursActifById(request.server, finalCoursId);
-    if (!cours) {
-      return reply.code(404).send({
-        message: "Cours introuvable",
-      });
-    }
-
-    const salle = await getSalleActiveById(request.server, finalSalleId);
-    if (!salle) {
-      return reply.code(404).send({
-        message: "Salle introuvable",
-      });
-    }
-
-    const plageHoraire = await getPlageHoraireActiveById(
-      request.server,
-      finalPlageHoraireId
-    );
-    if (!plageHoraire) {
-      return reply.code(404).send({
-        message: "Plage horaire introuvable",
-      });
-    }
-
-    if (!cours.typeDeSalleId) {
-      return reply.code(409).send({
-        message: "Le cours n'a pas de type de salle défini",
-      });
-    }
-
-    if (salle.typeDeSalleId !== cours.typeDeSalleId) {
-      return reply.code(409).send({
-        message: "La salle n'est pas compatible avec le type requis du cours",
-      });
-    }
-
-    const salleConflict = await findSalleConflict(request.server, {
-      date: finalDate,
-      salleId: finalSalleId,
-      plageHoraireId: finalPlageHoraireId,
-      excludeSeanceId: id,
-    });
-
-    if (salleConflict) {
-      return reply.code(409).send({
-        message:
-          "La salle est déjà occupée pour cette date et cette plage horaire",
-      });
-    }
-
-    const payload: UpdateSeancePayload = {};
-
-    if (body.date !== undefined) payload.date = finalDate;
-    if (body.coursId !== undefined) payload.coursId = body.coursId;
-    if (body.salleId !== undefined) payload.salleId = body.salleId;
-    if (body.plageHoraireId !== undefined) {
-      payload.plageHoraireId = body.plageHoraireId;
-    }
-    if (body.modifierPar !== undefined) {
-      payload.modifierPar = normalizeNullableString(body.modifierPar);
-    }
+    const payload: UpdateSeancePayload = {
+      ...(body.date !== undefined ? { date: new Date(body.date) } : {}),
+      ...(body.coursId !== undefined ? { coursId: body.coursId } : {}),
+      ...(body.salleId !== undefined ? { salleId: body.salleId } : {}),
+      ...(body.plageHoraireId !== undefined
+        ? { plageHoraireId: body.plageHoraireId }
+        : {}),
+      ...(body.professeurId !== undefined
+        ? { professeurId: body.professeurId }
+        : {}),
+      ...(body.modifierPar !== undefined
+        ? { modifierPar: normalizeNullableString(body.modifierPar) }
+        : {}),
+    };
 
     const seance = await updateSeance(request.server, id, payload);
 
@@ -504,12 +367,33 @@ export async function editSeance(
       message: "Séance modifiée avec succès",
       data: seance,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     request.log.error(error);
 
     if (isPrismaKnownError(error) && error.code === "P2025") {
       return reply.code(404).send({
         message: "Séance introuvable",
+      });
+    }
+
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({
+        message: error.message,
+      });
+    }
+
+    if (
+      error instanceof Error &&
+      (
+        error.message.includes("compatible") ||
+        error.message.includes("occupée") ||
+        error.message.includes("disponible") ||
+        error.message.includes("spécialité") ||
+        error.message.includes("affecté à une autre séance")
+      )
+    ) {
+      return reply.code(409).send({
+        message: error.message,
       });
     }
 
@@ -582,74 +466,12 @@ export async function assignProfesseurToSeance(
       });
     }
 
-    const professeur = await getProfesseurActifById(
-      request.server,
-      body.professeurId
-    );
-
-    if (!professeur) {
-      return reply.code(404).send({
-        message: "Professeur introuvable",
-      });
-    }
-
-    if (!seance.cours.specialiteId) {
-      return reply.code(409).send({
-        message: "Le cours de cette séance n'a pas de spécialité définie",
-      });
-    }
-
-    if (
-      !professeurHasRequiredSpecialite(professeur, seance.cours.specialiteId)
-    ) {
-      return reply.code(409).send({
-        message:
-          "La spécialité du professeur ne correspond pas au cours concerné",
-      });
-    }
-
-    const professeurConflict = await findProfesseurConflict(request.server, {
-      date: seance.date,
-      professeurId: body.professeurId,
-      plageHoraireId: seance.plageHoraireId,
-      excludeSeanceId: id,
-    });
-
-    if (professeurConflict) {
-      return reply.code(409).send({
-        message:
-          "Le professeur est déjà affecté à une autre séance pour cette date et cette plage horaire",
-      });
-    }
-
-    const dayName = getFrenchDayName(seance.date);
-
-    if (!professeurIsAvailableForDay(professeur, dayName)) {
-      return reply.code(409).send({
-        message: `Le professeur n'est pas disponible le ${dayName}`,
-      });
-    }
-
-    if (
-      !professeurIsAvailableForPlageHoraire(
-        professeur,
-        dayName,
-        seance.plageHoraireId
-      )
-    ) {
-      return reply.code(409).send({
-        message:
-          "Le professeur n'est pas disponible sur cette plage horaire pour ce jour",
-      });
-    }
-
     const payload: UpdateSeancePayload = {
       professeurId: body.professeurId,
+      ...(body.modifierPar !== undefined
+        ? { modifierPar: normalizeNullableString(body.modifierPar) }
+        : {}),
     };
-
-    if (body.modifierPar !== undefined) {
-      payload.modifierPar = normalizeNullableString(body.modifierPar);
-    }
 
     const updatedSeance = await updateSeance(request.server, id, payload);
 
@@ -657,12 +479,31 @@ export async function assignProfesseurToSeance(
       message: "Professeur affecté à la séance avec succès",
       data: updatedSeance,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     request.log.error(error);
 
     if (isPrismaKnownError(error) && error.code === "P2025") {
       return reply.code(404).send({
         message: "Séance introuvable",
+      });
+    }
+
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({
+        message: error.message,
+      });
+    }
+
+    if (
+      error instanceof Error &&
+      (
+        error.message.includes("spécialité") ||
+        error.message.includes("disponible") ||
+        error.message.includes("affecté à une autre séance")
+      )
+    ) {
+      return reply.code(409).send({
+        message: error.message,
       });
     }
 
@@ -734,12 +575,18 @@ export async function removeSeance(
       message: "Séance supprimée avec succès",
       data: seance,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     request.log.error(error);
 
     if (isPrismaKnownError(error) && error.code === "P2025") {
       return reply.code(404).send({
         message: "Séance introuvable",
+      });
+    }
+
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({
+        message: error.message,
       });
     }
 
