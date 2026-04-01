@@ -4,14 +4,13 @@ import {
   updateProfesseur,
   softDeleteProfesseur,
   isPrismaKnownError,
-  type UpdateProfesseurPayload,
+  createProfesseur,
+  getAllProfesseurs,
 } from "./professeur.service.js";
 
-
-import {
-  createProfesseur,
+import type {
+  UpdateProfesseurPayload,
   CreateProfesseurPayload,
-  getAllProfesseurs,
 } from "./professeur.service.js";
 
 type CreateProfesseurBody = {
@@ -20,62 +19,12 @@ type CreateProfesseurBody = {
   matricule: string;
 };
 
-export async function createProfesseurController(
-  request: FastifyRequest<{ Body: CreateProfesseurBody }>,
-  reply: FastifyReply
-) {
-  try {
-    const { nom, prenom, matricule } = request.body;
-
-    if (!nom || nom.trim() === "") {
-      return reply.code(400).send({ message: "Le nom est obligatoire" });
-    }
-
-    if (!prenom || prenom.trim() === "") {
-      return reply.code(400).send({ message: "Le prénom est obligatoire" });
-    }
-
-    if (!matricule || matricule.trim() === "") {
-      return reply.code(400).send({ message: "Le matricule est obligatoire" });
-    }
-
-    const payload: CreateProfesseurPayload = {
-      nom: nom.trim(),
-      prenom: prenom.trim(),
-      matricule: matricule.trim(),
-    };
-
-    const result = await createProfesseur(request.server, payload);
-
-    return reply.code(201).send(result);
-  } catch (err: any) {
-    request.log.error(err);
-    return reply.code(400).send({
-      message: err.message || "Erreur lors de la création du professeur",
-    });
-  }
-}
-
-export async function getAllProfesseursController(
-  request: FastifyRequest,
-  reply: FastifyReply
-) {
-  try {
-    const result = await getAllProfesseurs(request.server);
-    return reply.send(result);
-  } catch (err) {
-    request.log.error(err);
-    return reply.code(500).send({
-      message: "Erreur lors de la récupération des professeurs",
-    });
-  }
-}
 type ProfesseurParams = {
   id: string;
 };
 
 type UpdateProfesseurBody = {
-  nom?: string | null;
+  nom?: string;
   prenom?: string;
   matricule?: string;
   modifierPar?: string | null;
@@ -106,6 +55,82 @@ function normalizeNullableString(value: unknown): string | null {
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+/*
+================================
+API : CREATE PROFESSEUR
+================================
+*/
+export async function createProfesseurController(
+  request: FastifyRequest<{ Body: CreateProfesseurBody }>,
+  reply: FastifyReply
+) {
+  try {
+    const body = request.body;
+
+    if (!body) {
+      return reply.code(400).send({
+        message: "Le corps de la requête est obligatoire",
+      });
+    }
+
+    const { nom, prenom, matricule } = body;
+
+    if (!nom || nom.trim() === "") {
+      return reply.code(400).send({ message: "Le nom est obligatoire" });
+    }
+
+    if (!prenom || prenom.trim() === "") {
+      return reply.code(400).send({ message: "Le prénom est obligatoire" });
+    }
+
+    if (!matricule || matricule.trim() === "") {
+      return reply.code(400).send({ message: "Le matricule est obligatoire" });
+    }
+
+    const payload: CreateProfesseurPayload = {
+      nom: nom.trim(),
+      prenom: prenom.trim(),
+      matricule: matricule.trim(),
+    };
+
+    const result = await createProfesseur(request.server, payload);
+
+    return reply.code(201).send(result);
+  } catch (err: unknown) {
+    request.log.error(err);
+
+    if (err instanceof Error && err.message.includes("existe déjà")) {
+      return reply.code(409).send({
+        message: err.message,
+      });
+    }
+
+    return reply.code(500).send({
+      message: "Erreur lors de la création du professeur",
+    });
+  }
+}
+
+/*
+================================
+API : GET ALL PROFESSEURS
+================================
+*/
+export async function getAllProfesseursController(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const result = await getAllProfesseurs(request.server);
+    return reply.send(result);
+  } catch (err) {
+    request.log.error(err);
+    return reply.code(500).send({
+      message: "Erreur lors de la récupération des professeurs",
+    });
+  }
 }
 
 /*
@@ -166,39 +191,30 @@ export async function editProfesseur(
 
   const body = request.body ?? {};
 
-  // Validation : body vide
   if (Object.keys(body).length === 0) {
     return reply.code(400).send({
       message: "Aucune donnée à modifier",
     });
   }
 
-  // Validation : type du champ nom
-  if (
-    body.nom !== undefined &&
-    body.nom !== null &&
-    typeof body.nom !== "string"
-  ) {
+  if (body.nom !== undefined && typeof body.nom !== "string") {
     return reply.code(400).send({
-      message: "Le champ nom doit être une chaîne de caractères ou null",
+      message: "Le champ nom doit être une chaîne de caractères",
     });
   }
 
-  // Validation : type du champ prenom
   if (body.prenom !== undefined && typeof body.prenom !== "string") {
     return reply.code(400).send({
       message: "Le champ prenom doit être une chaîne de caractères",
     });
   }
 
-  // Validation : type du champ matricule
   if (body.matricule !== undefined && typeof body.matricule !== "string") {
     return reply.code(400).send({
       message: "Le champ matricule doit être une chaîne de caractères",
     });
   }
 
-  // Validation : type du champ modifierPar
   if (
     body.modifierPar !== undefined &&
     body.modifierPar !== null &&
@@ -209,14 +225,18 @@ export async function editProfesseur(
     });
   }
 
-  // Validation : prenom vide
+  if (body.nom !== undefined && isBlankString(body.nom)) {
+    return reply.code(400).send({
+      message: "Le champ nom ne peut pas être vide",
+    });
+  }
+
   if (body.prenom !== undefined && isBlankString(body.prenom)) {
     return reply.code(400).send({
       message: "Le champ prenom ne peut pas être vide",
     });
   }
 
-  // Validation : matricule vide
   if (body.matricule !== undefined && isBlankString(body.matricule)) {
     return reply.code(400).send({
       message: "Le champ matricule ne peut pas être vide",
@@ -226,7 +246,7 @@ export async function editProfesseur(
   const payload: UpdateProfesseurPayload = {};
 
   if (body.nom !== undefined) {
-    payload.nom = normalizeNullableString(body.nom);
+    payload.nom = normalizeString(body.nom);
   }
 
   if (body.prenom !== undefined) {
@@ -256,12 +276,24 @@ export async function editProfesseur(
       message: "Professeur modifié avec succès",
       data: professeur,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     request.log.error(error);
 
     if (isPrismaKnownError(error) && error.code === "P2025") {
       return reply.code(404).send({
         message: "Professeur introuvable",
+      });
+    }
+
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({
+        message: error.message,
+      });
+    }
+
+    if (error instanceof Error && error.message.includes("existe déjà")) {
+      return reply.code(409).send({
+        message: error.message,
       });
     }
 
@@ -293,7 +325,6 @@ export async function removeProfesseur(
 
   const body = request.body ?? {};
 
-  // Validation : type du champ supprimePar
   if (
     body.supprimePar !== undefined &&
     body.supprimePar !== null &&
@@ -328,12 +359,27 @@ export async function removeProfesseur(
       message: "Professeur supprimé avec succès",
       data: professeur,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     request.log.error(error);
 
     if (isPrismaKnownError(error) && error.code === "P2025") {
       return reply.code(404).send({
         message: "Professeur introuvable",
+      });
+    }
+
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({
+        message: error.message,
+      });
+    }
+
+    if (
+      error instanceof Error &&
+      error.message.includes("affecté à une séance")
+    ) {
+      return reply.code(409).send({
+        message: error.message,
       });
     }
 

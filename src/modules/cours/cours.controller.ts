@@ -6,8 +6,11 @@ import {
   updateCours,
   softDeleteCours,
   isPrismaKnownError,
-  type CreateCoursPayload,
-  type UpdateCoursPayload,
+} from "./cours.service.js";
+
+import type {
+  CreateCoursPayload,
+  UpdateCoursPayload,
 } from "./cours.service.js";
 
 /*
@@ -22,6 +25,8 @@ type CreateCoursBody = {
   code: string;
   duree: number;
   etape: number;
+  specialiteId?: number | null;
+  typeDeSalleId?: number | null;
   creerPar?: string | null;
 };
 
@@ -30,6 +35,8 @@ type UpdateCoursBody = {
   code?: string;
   duree?: number;
   etape?: number;
+  specialiteId?: number | null;
+  typeDeSalleId?: number | null;
   est_harchive?: boolean;
   modifierPar?: string | null;
 };
@@ -48,13 +55,17 @@ function parseId(id: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-function trim(value: unknown) {
+function trim(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function trimNullable(value: unknown) {
+function trimNullable(value: unknown): string | null {
   if (value === null) return null;
   return typeof value === "string" ? value.trim() : null;
+}
+
+function isBlankString(value: unknown): boolean {
+  return typeof value === "string" && value.trim() === "";
 }
 
 /*
@@ -66,42 +77,76 @@ export async function addCours(
   request: FastifyRequest<{ Body: CreateCoursBody }>,
   reply: FastifyReply
 ) {
-  const b = request.body;
-
-  if (!b.nom?.trim()) {
-    return reply.code(400).send({ message: "Nom requis" });
-  }
-
-  if (!b.code?.trim()) {
-    return reply.code(400).send({ message: "Code requis" });
-  }
-
-  if (!Number.isInteger(b.duree) || b.duree <= 0) {
-    return reply.code(400).send({ message: "Durée invalide" });
-  }
-
-  if (!Number.isInteger(b.etape) || b.etape <= 0) {
-    return reply.code(400).send({ message: "Étape invalide" });
-  }
-
-  const payload: CreateCoursPayload = {
-    nom: trim(b.nom),
-    code: trim(b.code),
-    duree: b.duree,
-    etape: b.etape,
-    creerPar: trimNullable(b.creerPar),
-  };
-
   try {
+    const b = request.body;
+
+    if (!b) {
+      return reply
+        .code(400)
+        .send({ message: "Le corps de la requête est obligatoire" });
+    }
+
+    if (!b.nom || b.nom.trim() === "") {
+      return reply.code(400).send({ message: "Nom requis" });
+    }
+
+    if (!b.code || b.code.trim() === "") {
+      return reply.code(400).send({ message: "Code requis" });
+    }
+
+    if (!Number.isInteger(b.duree) || b.duree <= 0) {
+      return reply.code(400).send({ message: "Durée invalide" });
+    }
+
+    if (!Number.isInteger(b.etape) || b.etape <= 0) {
+      return reply.code(400).send({ message: "Étape invalide" });
+    }
+
+    if (
+      b.specialiteId !== undefined &&
+      b.specialiteId !== null &&
+      (!Number.isInteger(b.specialiteId) || b.specialiteId <= 0)
+    ) {
+      return reply.code(400).send({ message: "Spécialité invalide" });
+    }
+
+    if (
+      b.typeDeSalleId !== undefined &&
+      b.typeDeSalleId !== null &&
+      (!Number.isInteger(b.typeDeSalleId) || b.typeDeSalleId <= 0)
+    ) {
+      return reply.code(400).send({ message: "Type de salle invalide" });
+    }
+
+    const payload: CreateCoursPayload = {
+      nom: trim(b.nom),
+      code: trim(b.code),
+      duree: b.duree,
+      etape: b.etape,
+      ...(b.specialiteId !== undefined ? { specialiteId: b.specialiteId } : {}),
+      ...(b.typeDeSalleId !== undefined ? { typeDeSalleId: b.typeDeSalleId } : {}),
+      ...(b.creerPar !== undefined ? { creerPar: trimNullable(b.creerPar) } : {}),
+    };
+
     const cours = await createCours(request.server, payload);
 
     return reply.code(201).send({
       message: "Cours créé",
       data: cours,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    request.log.error(error);
+
     if (isPrismaKnownError(error) && error.code === "P2002") {
       return reply.code(409).send({ message: "Code déjà utilisé" });
+    }
+
+    if (error instanceof Error && error.message.includes("existe déjà")) {
+      return reply.code(409).send({ message: error.message });
+    }
+
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({ message: error.message });
     }
 
     return reply.code(500).send({ message: "Erreur serveur" });
@@ -113,9 +158,17 @@ export async function addCours(
 GET ALL
 ================================
 */
-export async function listCours(request: FastifyRequest, reply: FastifyReply) {
-  const data = await getAllCours(request.server);
-  return reply.send({ data });
+export async function listCours(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const data = await getAllCours(request.server);
+    return reply.send({ data });
+  } catch (error) {
+    request.log.error(error);
+    return reply.code(500).send({ message: "Erreur serveur" });
+  }
 }
 
 /*
@@ -133,18 +186,23 @@ export async function getCours(
     return reply.code(400).send({ message: "ID invalide" });
   }
 
-  const cours = await getCoursById(request.server, id);
+  try {
+    const cours = await getCoursById(request.server, id);
 
-  if (!cours) {
-    return reply.code(404).send({ message: "Cours introuvable" });
+    if (!cours) {
+      return reply.code(404).send({ message: "Cours introuvable" });
+    }
+
+    return reply.send({ data: cours });
+  } catch (error) {
+    request.log.error(error);
+    return reply.code(500).send({ message: "Erreur serveur" });
   }
-
-  return reply.send({ data: cours });
 }
 
 /*
 ================================
-UPDATE (editCours)
+UPDATE
 ================================
 */
 export async function editCours(
@@ -166,16 +224,91 @@ export async function editCours(
     return reply.code(400).send({ message: "Aucune donnée à modifier" });
   }
 
-  const payload: UpdateCoursPayload = {};
+  if (body.nom !== undefined && typeof body.nom !== "string") {
+    return reply
+      .code(400)
+      .send({ message: "Le champ nom doit être une chaîne de caractères" });
+  }
 
-  if (body.nom !== undefined) payload.nom = trim(body.nom);
-  if (body.code !== undefined) payload.code = trim(body.code);
-  if (body.duree !== undefined) payload.duree = body.duree;
-  if (body.etape !== undefined) payload.etape = body.etape;
-  if (body.est_harchive !== undefined)
-    payload.est_harchive = body.est_harchive;
-  if (body.modifierPar !== undefined)
-    payload.modifierPar = trimNullable(body.modifierPar);
+  if (body.code !== undefined && typeof body.code !== "string") {
+    return reply
+      .code(400)
+      .send({ message: "Le champ code doit être une chaîne de caractères" });
+  }
+
+  if (
+    body.duree !== undefined &&
+    (!Number.isInteger(body.duree) || body.duree <= 0)
+  ) {
+    return reply.code(400).send({ message: "Durée invalide" });
+  }
+
+  if (
+    body.etape !== undefined &&
+    (!Number.isInteger(body.etape) || body.etape <= 0)
+  ) {
+    return reply.code(400).send({ message: "Étape invalide" });
+  }
+
+  if (
+    body.specialiteId !== undefined &&
+    body.specialiteId !== null &&
+    (!Number.isInteger(body.specialiteId) || body.specialiteId <= 0)
+  ) {
+    return reply.code(400).send({ message: "Spécialité invalide" });
+  }
+
+  if (
+    body.typeDeSalleId !== undefined &&
+    body.typeDeSalleId !== null &&
+    (!Number.isInteger(body.typeDeSalleId) || body.typeDeSalleId <= 0)
+  ) {
+    return reply.code(400).send({ message: "Type de salle invalide" });
+  }
+
+  if (
+    body.est_harchive !== undefined &&
+    typeof body.est_harchive !== "boolean"
+  ) {
+    return reply
+      .code(400)
+      .send({ message: "Le champ est_harchive doit être un booléen" });
+  }
+
+  if (
+    body.modifierPar !== undefined &&
+    body.modifierPar !== null &&
+    typeof body.modifierPar !== "string"
+  ) {
+    return reply.code(400).send({
+      message: "Le champ modifierPar doit être une chaîne de caractères ou null",
+    });
+  }
+
+  if (body.nom !== undefined && isBlankString(body.nom)) {
+    return reply
+      .code(400)
+      .send({ message: "Le champ nom ne peut pas être vide" });
+  }
+
+  if (body.code !== undefined && isBlankString(body.code)) {
+    return reply
+      .code(400)
+      .send({ message: "Le champ code ne peut pas être vide" });
+  }
+
+  const payload: UpdateCoursPayload = {
+    ...(body.nom !== undefined ? { nom: trim(body.nom) } : {}),
+    ...(body.code !== undefined ? { code: trim(body.code) } : {}),
+    ...(body.duree !== undefined ? { duree: body.duree } : {}),
+    ...(body.etape !== undefined ? { etape: body.etape } : {}),
+    ...(body.specialiteId !== undefined ? { specialiteId: body.specialiteId } : {}),
+    ...(body.typeDeSalleId !== undefined ? { typeDeSalleId: body.typeDeSalleId } : {}),
+    ...(body.est_harchive !== undefined ? { est_harchive: body.est_harchive } : {}),
+    ...(body.modifierPar !== undefined
+      ? { modifierPar: trimNullable(body.modifierPar) }
+      : {}),
+  };
 
   try {
     const existing = await getCoursById(request.server, id);
@@ -190,11 +323,19 @@ export async function editCours(
       message: "Cours modifié",
       data: cours,
     });
-  } catch (error) {
-    if (isPrismaKnownError(error)) {
-      if (error.code === "P2002") {
-        return reply.code(409).send({ message: "Code déjà utilisé" });
-      }
+  } catch (error: unknown) {
+    request.log.error(error);
+
+    if (isPrismaKnownError(error) && error.code === "P2002") {
+      return reply.code(409).send({ message: "Code déjà utilisé" });
+    }
+
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({ message: error.message });
+    }
+
+    if (error instanceof Error && error.message.includes("existe déjà")) {
+      return reply.code(409).send({ message: error.message });
     }
 
     return reply.code(500).send({ message: "Erreur serveur" });
@@ -203,7 +344,7 @@ export async function editCours(
 
 /*
 ================================
-DELETE (removeCours)
+DELETE
 ================================
 */
 export async function removeCours(
@@ -219,9 +360,21 @@ export async function removeCours(
     return reply.code(400).send({ message: "ID invalide" });
   }
 
+  const body = request.body ?? {};
+
+  if (
+    body.supprimePar !== undefined &&
+    body.supprimePar !== null &&
+    typeof body.supprimePar !== "string"
+  ) {
+    return reply.code(400).send({
+      message: "Le champ supprimePar doit être une chaîne de caractères ou null",
+    });
+  }
+
   const supprimePar =
-    request.body?.supprimePar !== undefined
-      ? trimNullable(request.body.supprimePar)
+    body.supprimePar !== undefined
+      ? trimNullable(body.supprimePar)
       : undefined;
 
   try {
@@ -231,17 +384,26 @@ export async function removeCours(
       return reply.code(404).send({ message: "Cours introuvable" });
     }
 
-    const cours = await softDeleteCours(
-      request.server,
-      id,
-      supprimePar
-    );
+    const cours = await softDeleteCours(request.server, id, supprimePar);
 
     return reply.send({
       message: "Cours supprimé",
       data: cours,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    request.log.error(error);
+
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({ message: error.message });
+    }
+
+    if (
+      error instanceof Error &&
+      error.message.includes("affecté à une séance")
+    ) {
+      return reply.code(409).send({ message: error.message });
+    }
+
     return reply.code(500).send({ message: "Erreur serveur" });
   }
 }
