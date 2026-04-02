@@ -4,9 +4,37 @@ import { Prisma } from "../../../generated/prisma/client.js";
 export type UpdateProfesseurPayload = {
   nom?: string | null;
   prenom?: string;
-  matricule?: string;
   modifierPar?: string | null;
 };
+
+export type CreateProfesseurPayload = {
+  nom: string;
+  prenom: string;
+};
+
+function formatMatricule(num: number): string {
+  return `PROF${String(num).padStart(3, "0")}`;
+}
+
+async function generateNextMatricule(app: FastifyInstance): Promise<string> {
+  const professeurs = await app.prisma.professeur.findMany({
+    select: { matricule: true },
+  });
+
+  let maxNum = 0;
+
+  for (const prof of professeurs) {
+    const match = /^PROF(\d+)$/i.exec(prof.matricule ?? "");
+    if (match) {
+      const num = Number(match[1]);
+      if (!Number.isNaN(num) && num > maxNum) {
+        maxNum = num;
+      }
+    }
+  }
+
+  return formatMatricule(maxNum + 1);
+}
 
 /*
 ================================
@@ -37,51 +65,56 @@ export async function getProfesseurById(app: FastifyInstance, id: number) {
 
 /*
 ================================
+API SERVICE : GET PROFESSEUR SIMPLE
+================================
+*/
+export async function getProfesseurSimpleById(
+  app: FastifyInstance,
+  id: number
+) {
+  return app.prisma.professeur.findFirst({
+    where: {
+      id,
+      supprimeLe: null,
+    },
+  });
+}
+
+/*
+================================
 API SERVICE : CREATE PROFESSEUR
 ================================
 */
-
-export type CreateProfesseurPayload = {
-  nom: string;
-  prenom: string;
-  matricule: string;
-};
-
 export async function createProfesseur(
   app: FastifyInstance,
   data: CreateProfesseurPayload
 ) {
-  const existingMatricule = await app.prisma.professeur.findFirst({
-    where: {
-      matricule: {
-        equals: data.matricule,
-        mode: "insensitive",
-      },
-    },
-  });
-
-  if (existingMatricule) {
-    throw new Error("Un professeur avec ce matricule existe déjà");
-  }
+  const matricule = await generateNextMatricule(app);
 
   return app.prisma.professeur.create({
     data: {
       nom: data.nom,
       prenom: data.prenom,
-      matricule: data.matricule,
+      matricule,
     },
   });
 }
+
+/*
+================================
+API SERVICE : GET ALL PROFESSEURS
+================================
+*/
 export async function getAllProfesseurs(app: FastifyInstance) {
   return app.prisma.professeur.findMany({
+    where: {
+      supprimeLe: null,
+    },
     orderBy: {
       id: "asc",
     },
   });
 }
-
-
-
 
 /*
 ================================
@@ -98,7 +131,6 @@ export async function updateProfesseur(
     data: {
       ...("nom" in data ? { nom: data.nom } : {}),
       ...("prenom" in data ? { prenom: data.prenom } : {}),
-      ...("matricule" in data ? { matricule: data.matricule } : {}),
       ...("modifierPar" in data ? { modifierPar: data.modifierPar } : {}),
       modifierLe: new Date(),
     },
@@ -107,7 +139,7 @@ export async function updateProfesseur(
 
 /*
 ================================
-API SERVICE : DELETE PROFESSEUR 
+API SERVICE : DELETE PROFESSEUR
 ================================
 */
 export async function softDeleteProfesseur(
@@ -115,6 +147,17 @@ export async function softDeleteProfesseur(
   id: number,
   supprimePar?: string | null
 ) {
+  const existing = await app.prisma.professeur.findFirst({
+    where: {
+      id,
+      supprimeLe: null,
+    },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
   return app.prisma.professeur.update({
     where: { id },
     data: {
