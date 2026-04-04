@@ -1,14 +1,33 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import {
+  createCours,
+  getAllCours,
   getCoursById,
   updateCours,
   softDeleteCours,
   isPrismaKnownError,
-  type UpdateCoursPayload,
 } from "./cours.service.js";
 
-type CoursParams = {
-  id: string;
+import type {
+  CreateCoursPayload,
+  UpdateCoursPayload,
+} from "./cours.service.js";
+
+/*
+================================
+TYPES
+================================
+*/
+type CoursParams = { id: string };
+
+type CreateCoursBody = {
+  nom: string;
+  code: string;
+  duree: number;
+  etape: number;
+  specialiteId?: number | null;
+  typeDeSalleId?: number | null;
+  creerPar?: string | null;
 };
 
 type UpdateCoursBody = {
@@ -16,6 +35,8 @@ type UpdateCoursBody = {
   code?: string;
   duree?: number;
   etape?: number;
+  specialiteId?: number | null;
+  typeDeSalleId?: number | null;
   est_harchive?: boolean;
   modifierPar?: string | null;
 };
@@ -24,32 +45,164 @@ type DeleteCoursBody = {
   supprimePar?: string | null;
 };
 
+/*
+================================
+UTILS
+================================
+*/
 function parseId(id: string): number | null {
-  const parsedId = Number(id);
+  const n = Number(id);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
 
-  if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    return null;
-  }
+function trim(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
 
-  return parsedId;
+function trimNullable(value: unknown): string | null {
+  if (value === null) return null;
+  return typeof value === "string" ? value.trim() : null;
 }
 
 function isBlankString(value: unknown): boolean {
   return typeof value === "string" && value.trim() === "";
 }
 
-function normalizeString(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
-}
+/*
+================================
+CREATE
+================================
+*/
+export async function addCours(
+  request: FastifyRequest<{ Body: CreateCoursBody }>,
+  reply: FastifyReply
+) {
+  try {
+    const b = request.body;
 
-function normalizeNullableString(value: unknown): string | null {
-  if (value === null) return null;
-  return typeof value === "string" ? value.trim() : null;
+    if (!b) {
+      return reply
+        .code(400)
+        .send({ message: "Le corps de la requête est obligatoire" });
+    }
+
+    if (!b.nom || b.nom.trim() === "") {
+      return reply.code(400).send({ message: "Nom requis" });
+    }
+
+    if (!b.code || b.code.trim() === "") {
+      return reply.code(400).send({ message: "Code requis" });
+    }
+
+    if (!Number.isInteger(b.duree) || b.duree <= 0) {
+      return reply.code(400).send({ message: "Durée invalide" });
+    }
+
+    if (!Number.isInteger(b.etape) || b.etape <= 0) {
+      return reply.code(400).send({ message: "Étape invalide" });
+    }
+
+    if (
+      b.specialiteId !== undefined &&
+      b.specialiteId !== null &&
+      (!Number.isInteger(b.specialiteId) || b.specialiteId <= 0)
+    ) {
+      return reply.code(400).send({ message: "Spécialité invalide" });
+    }
+
+    if (
+      b.typeDeSalleId !== undefined &&
+      b.typeDeSalleId !== null &&
+      (!Number.isInteger(b.typeDeSalleId) || b.typeDeSalleId <= 0)
+    ) {
+      return reply.code(400).send({ message: "Type de salle invalide" });
+    }
+
+    const payload: CreateCoursPayload = {
+      nom: trim(b.nom),
+      code: trim(b.code),
+      duree: b.duree,
+      etape: b.etape,
+      ...(b.specialiteId !== undefined ? { specialiteId: b.specialiteId } : {}),
+      ...(b.typeDeSalleId !== undefined ? { typeDeSalleId: b.typeDeSalleId } : {}),
+      ...(b.creerPar !== undefined ? { creerPar: trimNullable(b.creerPar) } : {}),
+    };
+
+    const cours = await createCours(request.server, payload);
+
+    return reply.code(201).send({
+      message: "Cours créé",
+      data: cours,
+    });
+  } catch (error: unknown) {
+    request.log.error(error);
+
+    if (isPrismaKnownError(error) && error.code === "P2002") {
+      return reply.code(409).send({ message: "Code déjà utilisé" });
+    }
+
+    if (error instanceof Error && error.message.includes("existe déjà")) {
+      return reply.code(409).send({ message: error.message });
+    }
+
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({ message: error.message });
+    }
+
+    return reply.code(500).send({ message: "Erreur serveur" });
+  }
 }
 
 /*
 ================================
-API : UPDATE COURS
+GET ALL
+================================
+*/
+export async function listCours(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const data = await getAllCours(request.server);
+    return reply.send({ data });
+  } catch (error) {
+    request.log.error(error);
+    return reply.code(500).send({ message: "Erreur serveur" });
+  }
+}
+
+/*
+================================
+GET BY ID
+================================
+*/
+export async function getCours(
+  request: FastifyRequest<{ Params: CoursParams }>,
+  reply: FastifyReply
+) {
+  const id = parseId(request.params.id);
+
+  if (!id) {
+    return reply.code(400).send({ message: "ID invalide" });
+  }
+
+  try {
+    const cours = await getCoursById(request.server, id);
+
+    if (!cours) {
+      return reply.code(404).send({ message: "Cours introuvable" });
+    }
+
+    return reply.send({ data: cours });
+  } catch (error) {
+    request.log.error(error);
+    return reply.code(500).send({ message: "Erreur serveur" });
+  }
+}
+
+/*
+================================
+UPDATE
 ================================
 */
 export async function editCours(
@@ -62,65 +215,66 @@ export async function editCours(
   const id = parseId(request.params.id);
 
   if (!id) {
-    return reply.code(400).send({
-      message: "Identifiant du cours invalide",
-    });
+    return reply.code(400).send({ message: "ID invalide" });
   }
 
   const body = request.body ?? {};
 
-  // Validation : body vide
   if (Object.keys(body).length === 0) {
-    return reply.code(400).send({
-      message: "Aucune donnée à modifier",
-    });
+    return reply.code(400).send({ message: "Aucune donnée à modifier" });
   }
 
-  // Validation : type du champ nom
   if (body.nom !== undefined && typeof body.nom !== "string") {
-    return reply.code(400).send({
-      message: "Le champ nom doit être une chaîne de caractères",
-    });
+    return reply
+      .code(400)
+      .send({ message: "Le champ nom doit être une chaîne de caractères" });
   }
 
-  // Validation : type du champ code
   if (body.code !== undefined && typeof body.code !== "string") {
-    return reply.code(400).send({
-      message: "Le champ code doit être une chaîne de caractères",
-    });
+    return reply
+      .code(400)
+      .send({ message: "Le champ code doit être une chaîne de caractères" });
   }
 
-  // Validation : type du champ duree
   if (
     body.duree !== undefined &&
-    (typeof body.duree !== "number" || !Number.isInteger(body.duree))
+    (!Number.isInteger(body.duree) || body.duree <= 0)
   ) {
-    return reply.code(400).send({
-      message: "Le champ duree doit être un entier",
-    });
+    return reply.code(400).send({ message: "Durée invalide" });
   }
 
-  // Validation : type du champ etape
   if (
     body.etape !== undefined &&
-    (typeof body.etape !== "number" || !Number.isInteger(body.etape))
+    (!Number.isInteger(body.etape) || body.etape <= 0)
   ) {
-    return reply.code(400).send({
-      message: "Le champ etape doit être un entier",
-    });
+    return reply.code(400).send({ message: "Étape invalide" });
   }
 
-  // Validation : type du champ est_harchive
+  if (
+    body.specialiteId !== undefined &&
+    body.specialiteId !== null &&
+    (!Number.isInteger(body.specialiteId) || body.specialiteId <= 0)
+  ) {
+    return reply.code(400).send({ message: "Spécialité invalide" });
+  }
+
+  if (
+    body.typeDeSalleId !== undefined &&
+    body.typeDeSalleId !== null &&
+    (!Number.isInteger(body.typeDeSalleId) || body.typeDeSalleId <= 0)
+  ) {
+    return reply.code(400).send({ message: "Type de salle invalide" });
+  }
+
   if (
     body.est_harchive !== undefined &&
     typeof body.est_harchive !== "boolean"
   ) {
-    return reply.code(400).send({
-      message: "Le champ est_harchive doit être un booléen",
-    });
+    return reply
+      .code(400)
+      .send({ message: "Le champ est_harchive doit être un booléen" });
   }
 
-  // Validation : type du champ modifierPar
   if (
     body.modifierPar !== undefined &&
     body.modifierPar !== null &&
@@ -131,101 +285,66 @@ export async function editCours(
     });
   }
 
-  // Validation : nom vide
   if (body.nom !== undefined && isBlankString(body.nom)) {
-    return reply.code(400).send({
-      message: "Le champ nom ne peut pas être vide",
-    });
+    return reply
+      .code(400)
+      .send({ message: "Le champ nom ne peut pas être vide" });
   }
 
-  // Validation : code vide
   if (body.code !== undefined && isBlankString(body.code)) {
-    return reply.code(400).send({
-      message: "Le champ code ne peut pas être vide",
-    });
+    return reply
+      .code(400)
+      .send({ message: "Le champ code ne peut pas être vide" });
   }
 
-  // Validation : duree <= 0
-  if (body.duree !== undefined && body.duree <= 0) {
-    return reply.code(400).send({
-      message: "Le champ duree doit être supérieur à 0",
-    });
-  }
-
-  // Validation : etape <= 0
-  if (body.etape !== undefined && body.etape <= 0) {
-    return reply.code(400).send({
-      message: "Le champ etape doit être supérieur à 0",
-    });
-  }
-
-  const payload: UpdateCoursPayload = {};
-
-  if (body.nom !== undefined) {
-    payload.nom = normalizeString(body.nom);
-  }
-
-  if (body.code !== undefined) {
-    payload.code = normalizeString(body.code);
-  }
-
-  if (body.duree !== undefined) {
-    payload.duree = body.duree;
-  }
-
-  if (body.etape !== undefined) {
-    payload.etape = body.etape;
-  }
-
-  if (body.est_harchive !== undefined) {
-    payload.est_harchive = body.est_harchive;
-  }
-
-  if (body.modifierPar !== undefined) {
-    payload.modifierPar = normalizeNullableString(body.modifierPar);
-  }
+  const payload: UpdateCoursPayload = {
+    ...(body.nom !== undefined ? { nom: trim(body.nom) } : {}),
+    ...(body.code !== undefined ? { code: trim(body.code) } : {}),
+    ...(body.duree !== undefined ? { duree: body.duree } : {}),
+    ...(body.etape !== undefined ? { etape: body.etape } : {}),
+    ...(body.specialiteId !== undefined ? { specialiteId: body.specialiteId } : {}),
+    ...(body.typeDeSalleId !== undefined ? { typeDeSalleId: body.typeDeSalleId } : {}),
+    ...(body.est_harchive !== undefined ? { est_harchive: body.est_harchive } : {}),
+    ...(body.modifierPar !== undefined
+      ? { modifierPar: trimNullable(body.modifierPar) }
+      : {}),
+  };
 
   try {
-    const coursExistant = await getCoursById(request.server, id);
+    const existing = await getCoursById(request.server, id);
 
-    if (!coursExistant) {
-      return reply.code(404).send({
-        message: "Cours introuvable",
-      });
+    if (!existing) {
+      return reply.code(404).send({ message: "Cours introuvable" });
     }
 
     const cours = await updateCours(request.server, id, payload);
 
     return reply.send({
-      message: "Cours modifié avec succès",
+      message: "Cours modifié",
       data: cours,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     request.log.error(error);
 
-    if (isPrismaKnownError(error)) {
-      if (error.code === "P2025") {
-        return reply.code(404).send({
-          message: "Cours introuvable",
-        });
-      }
-
-      if (error.code === "P2002") {
-        return reply.code(409).send({
-          message: "Un cours avec ce code existe déjà",
-        });
-      }
+    if (isPrismaKnownError(error) && error.code === "P2002") {
+      return reply.code(409).send({ message: "Code déjà utilisé" });
     }
 
-    return reply.code(500).send({
-      message: "Erreur interne du serveur",
-    });
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({ message: error.message });
+    }
+
+    if (error instanceof Error && error.message.includes("existe déjà")) {
+      return reply.code(409).send({ message: error.message });
+    }
+
+    return reply.code(500).send({ message: "Erreur serveur" });
   }
 }
 
 /*
 ================================
-API : DELETE COURS
+DELETE
 ================================
 */
 export async function removeCours(
@@ -238,14 +357,11 @@ export async function removeCours(
   const id = parseId(request.params.id);
 
   if (!id) {
-    return reply.code(400).send({
-      message: "Identifiant du cours invalide",
-    });
+    return reply.code(400).send({ message: "ID invalide" });
   }
 
   const body = request.body ?? {};
 
-  // Validation : type du champ supprimePar
   if (
     body.supprimePar !== undefined &&
     body.supprimePar !== null &&
@@ -258,35 +374,36 @@ export async function removeCours(
 
   const supprimePar =
     body.supprimePar !== undefined
-      ? normalizeNullableString(body.supprimePar)
+      ? trimNullable(body.supprimePar)
       : undefined;
 
   try {
-    const coursExistant = await getCoursById(request.server, id);
+    const existing = await getCoursById(request.server, id);
 
-    if (!coursExistant) {
-      return reply.code(404).send({
-        message: "Cours introuvable",
-      });
+    if (!existing) {
+      return reply.code(404).send({ message: "Cours introuvable" });
     }
 
     const cours = await softDeleteCours(request.server, id, supprimePar);
 
     return reply.send({
-      message: "Cours supprimé avec succès",
+      message: "Cours supprimé",
       data: cours,
     });
-  } catch (error) {
+  } catch (error: unknown) {
     request.log.error(error);
 
-    if (isPrismaKnownError(error) && error.code === "P2025") {
-      return reply.code(404).send({
-        message: "Cours introuvable",
-      });
+    if (error instanceof Error && error.message.includes("introuvable")) {
+      return reply.code(404).send({ message: error.message });
     }
 
-    return reply.code(500).send({
-      message: "Erreur interne du serveur",
-    });
+    if (
+      error instanceof Error &&
+      error.message.includes("affecté à une séance")
+    ) {
+      return reply.code(409).send({ message: error.message });
+    }
+
+    return reply.code(500).send({ message: "Erreur serveur" });
   }
 }

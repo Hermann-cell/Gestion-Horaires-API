@@ -4,6 +4,9 @@ import prismaPlugin from "./plugins/prisma.js";
 import fastifyJwt from "@fastify/jwt";
 import cors from "@fastify/cors";
 
+import mailerPlugin from "./plugins/mailer.js";
+import { emailRoutes } from "./modules/email/email.routes.js";
+
 // Routes
 import { userRoutes } from "./modules/user/user.routes.js";
 import { salleRoutes } from "./modules/salle/salle.routes.js";
@@ -13,6 +16,7 @@ import { programmeRoutes } from "./modules/programme/programme.routes.js";
 import { typeSalleRoutes } from "./modules/typeSalle/typeSalle.routes.js";
 import { specialiteRoutes } from "./modules/specialite/specialite.routes.js";
 import plageHoraireRoutes from "./modules/plageHoraire/plageHoraire.routes.js";
+import { seanceRoutes } from "./modules/seance/seance.routes.js";
 
 
 // Middleware
@@ -30,7 +34,7 @@ export function buildApp() {
 
   // Prisma
   app.register(prismaPlugin);
-
+  app.register(mailerPlugin);
   // JWT
   app.register(fastifyJwt, {
     secret: process.env.JWT_SECRET || "supersecretkey",
@@ -64,11 +68,12 @@ export function buildApp() {
   app.register(programmeRoutes, { prefix: `${API_PREFIX}/programmes` });
   app.register(roleRoutes, { prefix: `${API_PREFIX}/roles` });
   app.register(salleRoutes, { prefix: `${API_PREFIX}/salles` });
-  // app.register(seanceRoutes, { prefix: `${API_PREFIX}/seances` });
+  app.register(seanceRoutes, { prefix: `${API_PREFIX}/seances` });
   app.register(specialiteRoutes, { prefix: `${API_PREFIX}/specialites` });
   // app.register(specialite_professeurRoutes, { prefix: `${API_PREFIX}/specialite_professeurs` });
   app.register(typeSalleRoutes, { prefix: `${API_PREFIX}/typeSalles` });
   app.register(userRoutes, { prefix: `${API_PREFIX}/users` });
+  app.register(emailRoutes, { prefix: `${API_PREFIX}/emails` });
 
   /*
   ===============================

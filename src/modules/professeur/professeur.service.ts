@@ -2,7 +2,7 @@ import { FastifyInstance } from "fastify";
 import { Prisma } from "../../../generated/prisma/client.js";
 
 export type UpdateProfesseurPayload = {
-  nom?: string | null;
+  nom?: string;
   prenom?: string;
   modifierPar?: string | null;
 };
@@ -68,13 +68,22 @@ export async function getProfesseurById(app: FastifyInstance, id: number) {
 API SERVICE : GET PROFESSEUR SIMPLE
 ================================
 */
-export async function getProfesseurSimpleById(
+export type CreateProfesseurPayload = {
+  nom: string;
+  prenom: string;
+  matricule: string;
+};
+
+export async function createProfesseur(
   app: FastifyInstance,
   id: number
 ) {
   return app.prisma.professeur.findFirst({
     where: {
-      id,
+      matricule: {
+        equals: data.matricule,
+        mode: "insensitive",
+      },
       supprimeLe: null,
     },
   });
@@ -100,10 +109,7 @@ export async function createProfesseur(
   });
 }
 
-/*
-================================
 API SERVICE : GET ALL PROFESSEURS
-================================
 */
 export async function getAllProfesseurs(app: FastifyInstance) {
   return app.prisma.professeur.findMany({
@@ -126,6 +132,34 @@ export async function updateProfesseur(
   id: number,
   data: UpdateProfesseurPayload
 ) {
+  const professeur = await app.prisma.professeur.findFirst({
+    where: {
+      id,
+      supprimeLe: null,
+    },
+  });
+
+  if (!professeur) {
+    throw new Error("Professeur introuvable ou déjà supprimé");
+  }
+
+  if (data.matricule !== undefined) {
+    const existingMatricule = await app.prisma.professeur.findFirst({
+      where: {
+        matricule: {
+          equals: data.matricule,
+          mode: "insensitive",
+        },
+        supprimeLe: null,
+        NOT: { id },
+      },
+    });
+
+    if (existingMatricule) {
+      throw new Error("Un professeur avec ce matricule existe déjà");
+    }
+  }
+
   return app.prisma.professeur.update({
     where: { id },
     data: {
@@ -147,15 +181,28 @@ export async function softDeleteProfesseur(
   id: number,
   supprimePar?: string | null
 ) {
-  const existing = await app.prisma.professeur.findFirst({
+  const professeur = await app.prisma.professeur.findFirst({
     where: {
       id,
       supprimeLe: null,
     },
   });
 
-  if (!existing) {
-    return null;
+  if (!professeur) {
+    throw new Error("Professeur introuvable ou déjà supprimé");
+  }
+
+  const seanceAffectee = await app.prisma.seance.findFirst({
+    where: {
+      professeurId: id,
+      supprimeLe: null,
+    },
+  });
+
+  if (seanceAffectee) {
+    throw new Error(
+      "Impossible de supprimer ce professeur car il est affecté à une séance"
+    );
   }
 
   return app.prisma.professeur.update({

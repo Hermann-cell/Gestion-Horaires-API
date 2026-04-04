@@ -2,8 +2,16 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import * as service from "./user.service.js";
 import { plainToInstance } from "class-transformer";
 import { validateOrReject } from "class-validator";
+
 import { CreateUserDto } from "./dto/create-user.dto.js";
 import { UpdateUserDto } from "./dto/update-user.dto.js";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto.js";
+import { ResetPasswordDto } from "./dto/reset-password.dto.js";
+
+import { generateActivationToken } from "../auth/token.service.js";
+import { activationEmailTemplate } from "../email/templates/activation.template.js";
+import { EmailService } from "../email/email.service.js";
+
 
 // -------------------- Contrôleurs -------------------- //
 
@@ -40,19 +48,45 @@ export async function getUser(
   }
 }
 
-// Créer un utilisateur avec DTO + validation
-export async function createUser(
-  request: FastifyRequest<{ Body: CreateUserDto  }>,
+// Créer un utilisateur avec DTO + validation + envoi email activation
+export async function  createUser(
+  request: FastifyRequest<{ Body: CreateUserDto }>,
   reply: FastifyReply
 ) {
   try {
-    // Transformer l'objet JS en instance de classe DTO
     const dto = plainToInstance(CreateUserDto, request.body);
-    // Valider les données
     await validateOrReject(dto);
 
     const user = await service.createUser(request.server, dto);
-    return reply.code(201).send(user);
+
+    // -----------------------------
+    // Générer token activation
+    // -----------------------------
+    const token = generateActivationToken(user.id);
+
+    const activationLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+    // -----------------------------
+    // Construire email
+    // -----------------------------
+    const html = activationEmailTemplate(
+      user.nom || "Utilisateur",
+      activationLink
+    );
+
+    const emailService = new EmailService(request.server);
+
+    await emailService.sendEmail({
+      to: user.email,
+      subject: "Activation de votre compte",
+      html
+    });
+
+    return reply.code(201).send({
+      message: "User created. Activation email sent.",
+      user
+    });
+
   } catch (errors) {
     request.log.error(errors);
     return reply.code(400).send({ errors });
@@ -110,4 +144,65 @@ export async function deleteUser(
     request.log.error(e);
     return reply.code(400).send({ message: e.message });
   }
+}
+
+
+// Oublie de mot de passe
+export async function forgotPasswordController(
+  request: FastifyRequest<{ Body: ForgotPasswordDto }>,
+  reply: FastifyReply
+) {
+
+  try {
+
+    const dto = plainToInstance(ForgotPasswordDto, request.body);
+    await validateOrReject(dto);
+
+    await service.forgotPassword(request.server, dto.email);
+
+    return reply.send({
+      message: "If this email exists, a reset link was sent."
+    });
+
+  } catch (err) {
+
+    request.log.error(err);
+
+    return reply.code(400).send({
+      message: "Invalid request"
+    });
+
+  }
+
+}
+
+// Réinitialisation de mot de passe
+export async function resetPasswordController(
+  request: FastifyRequest<{ Body: ResetPasswordDto }>,
+  reply: FastifyReply
+) {
+
+  try {
+
+    const dto = plainToInstance(ResetPasswordDto, request.body);
+    await validateOrReject(dto);
+
+    const result = await service.resetPassword(
+      request.server,
+      dto.token,
+      dto.password
+    );
+
+    return reply.send(result);
+
+  } catch (err) {
+
+    request.log.error(err);
+
+    return reply.code(400).send({
+      message: "Invalid or expired token"
+    });
+
+  }
+
 }

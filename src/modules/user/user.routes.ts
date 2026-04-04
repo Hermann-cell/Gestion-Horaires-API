@@ -9,6 +9,8 @@ export async function userRoutes(fastify: FastifyInstance) {
   fastify.post("/login", controller.loginController);
   fastify.put("/:id", controller.updateUser);
   fastify.delete("/:id", controller.deleteUser);
+  fastify.post("/forgot-password", controller.forgotPasswordController);
+  fastify.post("/reset-password", controller.resetPasswordController);
   
 }
-
+  
