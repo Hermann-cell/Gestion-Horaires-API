@@ -1,6 +1,7 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import {
   getProfesseurById,
+  getProfesseurSimpleById,
   updateProfesseur,
   softDeleteProfesseur,
   isPrismaKnownError,
@@ -16,7 +17,6 @@ import type {
 type CreateProfesseurBody = {
   nom: string;
   prenom: string;
-  matricule: string;
 };
 
 type ProfesseurParams = {
@@ -85,14 +85,9 @@ export async function createProfesseurController(
       return reply.code(400).send({ message: "Le prénom est obligatoire" });
     }
 
-    if (!matricule || matricule.trim() === "") {
-      return reply.code(400).send({ message: "Le matricule est obligatoire" });
-    }
-
     const payload: CreateProfesseurPayload = {
       nom: nom.trim(),
       prenom: prenom.trim(),
-      matricule: matricule.trim(),
     };
 
     const result = await createProfesseur(request.server, payload);
@@ -162,6 +157,7 @@ export async function getProfesseur(
     return reply.send(professeur);
   } catch (error) {
     request.log.error(error);
+    console.error("ERREUR GET /professeurs/:id =", error);
 
     return reply.code(500).send({
       message: "Erreur interne du serveur",
@@ -253,16 +249,12 @@ export async function editProfesseur(
     payload.prenom = normalizeString(body.prenom);
   }
 
-  if (body.matricule !== undefined) {
-    payload.matricule = normalizeString(body.matricule);
-  }
-
   if (body.modifierPar !== undefined) {
     payload.modifierPar = normalizeNullableString(body.modifierPar);
   }
 
   try {
-    const professeurExistant = await getProfesseurById(request.server, id);
+    const professeurExistant = await getProfesseurSimpleById(request.server, id);
 
     if (!professeurExistant) {
       return reply.code(404).send({
@@ -278,6 +270,7 @@ export async function editProfesseur(
     });
   } catch (error: unknown) {
     request.log.error(error);
+    console.error("ERREUR PUT /professeurs/:id =", error);
 
     if (isPrismaKnownError(error) && error.code === "P2025") {
       return reply.code(404).send({
@@ -341,7 +334,7 @@ export async function removeProfesseur(
       : undefined;
 
   try {
-    const professeurExistant = await getProfesseurById(request.server, id);
+    const professeurExistant = await getProfesseurSimpleById(request.server, id);
 
     if (!professeurExistant) {
       return reply.code(404).send({
@@ -355,12 +348,19 @@ export async function removeProfesseur(
       supprimePar
     );
 
+    if (!professeur) {
+      return reply.code(404).send({
+        message: "Professeur introuvable",
+      });
+    }
+
     return reply.send({
       message: "Professeur supprimé avec succès",
       data: professeur,
     });
   } catch (error: unknown) {
     request.log.error(error);
+    console.error("ERREUR DELETE /professeurs/:id =", error);
 
     if (isPrismaKnownError(error) && error.code === "P2025") {
       return reply.code(404).send({
