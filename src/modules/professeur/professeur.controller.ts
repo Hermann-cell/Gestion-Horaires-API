@@ -3,57 +3,19 @@ import {
   getProfesseurById,
   updateProfesseur,
   softDeleteProfesseur,
-  isPrismaKnownError,
   createProfesseur,
   getAllProfesseurs,
-} from "./professeur.service.js";
-
-import type {
   UpdateProfesseurPayload,
-  CreateProfesseurPayload,
-} from "./professeur.service.js";
+  CreateProfesseurPayload
+} from "../professeur/professeur.service.js";
 
-type CreateProfesseurBody = {
-  nom: string;
+type ProfesseurParams = { id: string };
+
+// Interface pour typer l'utilisateur extrait du token JWT
+interface AuthUser {
   prenom: string;
-};
-
-type ProfesseurParams = {
-  id: string;
-};
-
-type UpdateProfesseurBody = {
-  nom?: string;
-  prenom?: string;
-  matricule?: string;
-  modifierPar?: string | null;
-};
-
-type DeleteProfesseurBody = {
-  supprimePar?: string | null;
-};
-
-function parseId(id: string): number | null {
-  const parsedId = Number(id);
-
-  if (!Number.isInteger(parsedId) || parsedId <= 0) {
-    return null;
-  }
-
-  return parsedId;
-}
-
-function isBlankString(value: unknown): boolean {
-  return typeof value === "string" && value.trim() === "";
-}
-
-function normalizeNullableString(value: unknown): string | null {
-  if (value === null) return null;
-  return typeof value === "string" ? value.trim() : null;
-}
-
-function normalizeString(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
+  nom: string;
+  email?: string;
 }
 
 /*
@@ -62,48 +24,29 @@ API : CREATE PROFESSEUR
 ================================
 */
 export async function createProfesseurController(
-  request: FastifyRequest<{ Body: CreateProfesseurBody }>,
+  request: FastifyRequest<{ Body: Omit<CreateProfesseurPayload, 'creerPar'> }>, 
   reply: FastifyReply
 ) {
   try {
-    const body = request.body;
-
-    if (!body) {
-      return reply.code(400).send({
-        message: "Le corps de la requête est obligatoire",
-      });
+    const { nom, prenom } = request.body;
+    if (!nom || !prenom) {
+      return reply.code(400).send({ message: "Nom et prénom requis" });
     }
 
-    const { nom, prenom } = body;
+    // Extraction de l'auteur depuis le token JWT
+    const user = request.user as AuthUser;
+    const auteur = `${user.prenom} ${user.nom}`.trim();
 
-    if (!nom || nom.trim() === "") {
-      return reply.code(400).send({ message: "Le nom est obligatoire" });
-    }
-
-    if (!prenom || prenom.trim() === "") {
-      return reply.code(400).send({ message: "Le prénom est obligatoire" });
-    }
-
-    const payload: CreateProfesseurPayload = {
-      nom: nom.trim(),
-      prenom: prenom.trim(),
-    };
-
-    const result = await createProfesseur(request.server, payload);
+    const result = await createProfesseur(request.server, { 
+      nom, 
+      prenom, 
+      creerPar: auteur 
+    });
 
     return reply.code(201).send(result);
-  } catch (err: unknown) {
+  } catch (err) {
     request.log.error(err);
-
-    if (err instanceof Error && err.message.includes("existe déjà")) {
-      return reply.code(409).send({
-        message: err.message,
-      });
-    }
-
-    return reply.code(500).send({
-      message: "Erreur lors de la création du professeur",
-    });
+    return reply.code(500).send({ message: "Erreur lors de la création" });
   }
 }
 
@@ -112,18 +55,12 @@ export async function createProfesseurController(
 API : GET ALL PROFESSEURS
 ================================
 */
-export async function getAllProfesseursController(
-  request: FastifyRequest,
-  reply: FastifyReply
-) {
+export async function getAllProfesseursController(request: FastifyRequest, reply: FastifyReply) {
   try {
     const result = await getAllProfesseurs(request.server);
     return reply.send(result);
   } catch (err) {
-    request.log.error(err);
-    return reply.code(500).send({
-      message: "Erreur lors de la récupération des professeurs",
-    });
+    return reply.code(500).send({ message: "Erreur de récupération" });
   }
 }
 
@@ -133,165 +70,49 @@ API : GET PROFESSEUR DETAILS
 ================================
 */
 export async function getProfesseur(
-  request: FastifyRequest<{ Params: ProfesseurParams }>,
+  request: FastifyRequest<{ Params: ProfesseurParams }>, 
   reply: FastifyReply
 ) {
-  const id = parseId(request.params.id);
-
-  if (!id) {
-    return reply.code(400).send({
-      message: "Identifiant du professeur invalide",
-    });
-  }
+  const id = parseInt(request.params.id);
+  if (isNaN(id)) return reply.code(400).send({ message: "ID invalide" });
 
   try {
     const professeur = await getProfesseurById(request.server, id);
-
-    if (!professeur) {
-      return reply.code(404).send({
-        message: "Professeur introuvable",
-      });
-    }
-
+    if (!professeur) return reply.code(404).send({ message: "Professeur introuvable" });
     return reply.send(professeur);
-  } catch (error) {
-    request.log.error(error);
-    console.error("ERREUR GET /professeurs/:id =", error);
-
-    return reply.code(500).send({
-      message: "Erreur interne du serveur",
-    });
+  } catch (err) {
+    return reply.code(500).send({ message: "Erreur serveur" });
   }
 }
 
 /*
 ================================
-API : UPDATE PROFESSEUR
+API : UPDATE PROFESSEUR (INFO + DISPOS)
 ================================
 */
 export async function editProfesseur(
-  request: FastifyRequest<{
-    Params: ProfesseurParams;
-    Body: UpdateProfesseurBody;
-  }>,
+  request: FastifyRequest<{ Params: ProfesseurParams, Body: UpdateProfesseurPayload }>, 
   reply: FastifyReply
 ) {
-  const id = parseId(request.params.id);
-
-  if (!id) {
-    return reply.code(400).send({
-      message: "Identifiant du professeur invalide",
-    });
-  }
-
-  const body = request.body ?? {};
-
-  if (Object.keys(body).length === 0) {
-    return reply.code(400).send({
-      message: "Aucune donnée à modifier",
-    });
-  }
-
-  if (body.nom !== undefined && typeof body.nom !== "string") {
-    return reply.code(400).send({
-      message: "Le champ nom doit être une chaîne de caractères",
-    });
-  }
-
-  if (body.prenom !== undefined && typeof body.prenom !== "string") {
-    return reply.code(400).send({
-      message: "Le champ prenom doit être une chaîne de caractères",
-    });
-  }
-
-  if (body.matricule !== undefined && typeof body.matricule !== "string") {
-    return reply.code(400).send({
-      message: "Le champ matricule doit être une chaîne de caractères",
-    });
-  }
-
-  if (
-    body.modifierPar !== undefined &&
-    body.modifierPar !== null &&
-    typeof body.modifierPar !== "string"
-  ) {
-    return reply.code(400).send({
-      message: "Le champ modifierPar doit être une chaîne de caractères ou null",
-    });
-  }
-
-  if (body.nom !== undefined && isBlankString(body.nom)) {
-    return reply.code(400).send({
-      message: "Le champ nom ne peut pas être vide",
-    });
-  }
-
-  if (body.prenom !== undefined && isBlankString(body.prenom)) {
-    return reply.code(400).send({
-      message: "Le champ prenom ne peut pas être vide",
-    });
-  }
-
-  if (body.matricule !== undefined && isBlankString(body.matricule)) {
-    return reply.code(400).send({
-      message: "Le champ matricule ne peut pas être vide",
-    });
-  }
-
-  const payload: UpdateProfesseurPayload = {};
-
-  if (body.nom !== undefined) {
-    payload.nom = normalizeString(body.nom);
-  }
-
-  if (body.prenom !== undefined) {
-    payload.prenom = normalizeString(body.prenom);
-  }
-
-  if (body.modifierPar !== undefined) {
-    payload.modifierPar = normalizeNullableString(body.modifierPar);
-  }
+  const id = parseInt(request.params.id);
+  if (isNaN(id)) return reply.code(400).send({ message: "ID invalide" });
 
   try {
-    const professeurExistant = await getProfesseurById(request.server, id);
+    // Extraction de l'auteur depuis le token JWT
+    const user = request.user as AuthUser;
+    const auteur = `${user.prenom} ${user.nom}`.trim();
 
-    if (!professeurExistant) {
-      return reply.code(404).send({
-        message: "Professeur introuvable",
-      });
-    }
+    // On injecte l'auteur dans le payload pour le service
+    const payload = {
+      ...request.body,
+      modifierPar: auteur
+    };
 
-    const professeur = await updateProfesseur(request.server, id, payload);
-
-    return reply.send({
-      message: "Professeur modifié avec succès",
-      data: professeur,
-    });
-  } catch (error: unknown) {
+    const result = await updateProfesseur(request.server, id, payload);
+    return reply.send({ message: "Professeur modifié avec succès", data: result });
+  } catch (error: any) {
     request.log.error(error);
-    console.error("ERREUR PUT /professeurs/:id =", error);
-
-    if (isPrismaKnownError(error) && error.code === "P2025") {
-      return reply.code(404).send({
-        message: "Professeur introuvable",
-      });
-    }
-
-    if (error instanceof Error && error.message.includes("introuvable")) {
-      return reply.code(404).send({
-        message: error.message,
-      });
-    }
-
-    if (error instanceof Error && error.message.includes("existe déjà")) {
-      return reply.code(409).send({
-        message: error.message,
-      });
-    }
-
-    return reply.code(500).send({
-      message: "Erreur interne du serveur",
-    });
+    return reply.code(500).send({ message: error.message || "Erreur lors de la modification" });
   }
 }
 
@@ -301,89 +122,26 @@ API : DELETE PROFESSEUR
 ================================
 */
 export async function removeProfesseur(
-  request: FastifyRequest<{
-    Params: ProfesseurParams;
-    Body: DeleteProfesseurBody;
-  }>,
+  request: FastifyRequest<{ Params: ProfesseurParams }>, 
   reply: FastifyReply
 ) {
-  const id = parseId(request.params.id);
-
-  if (!id) {
-    return reply.code(400).send({
-      message: "Identifiant du professeur invalide",
-    });
-  }
-
-  const body = request.body ?? {};
-
-  if (
-    body.supprimePar !== undefined &&
-    body.supprimePar !== null &&
-    typeof body.supprimePar !== "string"
-  ) {
-    return reply.code(400).send({
-      message: "Le champ supprimePar doit être une chaîne de caractères ou null",
-    });
-  }
-
-  const supprimePar =
-    body.supprimePar !== undefined
-      ? normalizeNullableString(body.supprimePar)
-      : undefined;
+  const id = parseInt(request.params.id);
+  if (isNaN(id)) return reply.code(400).send({ message: "ID invalide" });
 
   try {
-    const professeurExistant = await getProfesseurById(request.server, id);
+    // Extraction de l'auteur depuis le token JWT
+    const user = request.user as AuthUser;
+    const auteur = `${user.prenom} ${user.nom}`.trim();
 
-    if (!professeurExistant) {
-      return reply.code(404).send({
-        message: "Professeur introuvable",
-      });
-    }
-
-    const professeur = await softDeleteProfesseur(
-      request.server,
-      id,
-      supprimePar
-    );
-
-    if (!professeur) {
-      return reply.code(404).send({
-        message: "Professeur introuvable",
-      });
-    }
-
-    return reply.send({
-      message: "Professeur supprimé avec succès",
-      data: professeur,
-    });
-  } catch (error: unknown) {
+    await softDeleteProfesseur(request.server, id, auteur);
+    
+    return reply.send({ message: "Professeur supprimé avec succès" });
+  } catch (error: any) {
     request.log.error(error);
-    console.error("ERREUR DELETE /professeurs/:id =", error);
-
-    if (isPrismaKnownError(error) && error.code === "P2025") {
-      return reply.code(404).send({
-        message: "Professeur introuvable",
-      });
+    // Gestion spécifique si le prof est lié à une séance (Erreur 409 Conflict)
+    if (error.message.includes("affecté")) {
+      return reply.code(409).send({ message: error.message });
     }
-
-    if (error instanceof Error && error.message.includes("introuvable")) {
-      return reply.code(404).send({
-        message: error.message,
-      });
-    }
-
-    if (
-      error instanceof Error &&
-      error.message.includes("affecté à une séance")
-    ) {
-      return reply.code(409).send({
-        message: error.message,
-      });
-    }
-
-    return reply.code(500).send({
-      message: "Erreur interne du serveur",
-    });
+    return reply.code(500).send({ message: "Erreur lors de la suppression" });
   }
 }
