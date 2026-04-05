@@ -68,20 +68,20 @@ export async function getProfesseurById(app: FastifyInstance, id: number) {
 API SERVICE : GET PROFESSEUR SIMPLE
 ================================
 */
-export type CreateProfesseurPayload = {
+export type GetProfesseurPayload = {
   nom: string;
   prenom: string;
   matricule: string;
 };
 
-export async function createProfesseur(
+export async function getProfesseurByMatricule(
   app: FastifyInstance,
-  id: number
+  matricule: string
 ) {
   return app.prisma.professeur.findFirst({
     where: {
       matricule: {
-        equals: data.matricule,
+        equals: matricule,
         mode: "insensitive",
       },
       supprimeLe: null,
@@ -109,7 +109,7 @@ export async function createProfesseur(
   });
 }
 
-API SERVICE : GET ALL PROFESSEURS
+/*API SERVICE : GET ALL PROFESSEURS
 */
 export async function getAllProfesseurs(app: FastifyInstance) {
   return app.prisma.professeur.findMany({
@@ -143,34 +143,16 @@ export async function updateProfesseur(
     throw new Error("Professeur introuvable ou déjà supprimé");
   }
 
-  if (data.matricule !== undefined) {
-    const existingMatricule = await app.prisma.professeur.findFirst({
-      where: {
-        matricule: {
-          equals: data.matricule,
-          mode: "insensitive",
-        },
-        supprimeLe: null,
-        NOT: { id },
-      },
-    });
-
-    if (existingMatricule) {
-      throw new Error("Un professeur avec ce matricule existe déjà");
-    }
-  }
-
   return app.prisma.professeur.update({
     where: { id },
     data: {
-      ...("nom" in data ? { nom: data.nom } : {}),
-      ...("prenom" in data ? { prenom: data.prenom } : {}),
-      ...("modifierPar" in data ? { modifierPar: data.modifierPar } : {}),
+      ...(data.nom !== undefined && { nom: data.nom }),
+      ...(data.prenom !== undefined && { prenom: data.prenom }),
+      ...(data.modifierPar !== undefined && { modifierPar: data.modifierPar }),
       modifierLe: new Date(),
     },
   });
 }
-
 /*
 ================================
 API SERVICE : DELETE PROFESSEUR

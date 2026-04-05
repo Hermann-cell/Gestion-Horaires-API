@@ -1,7 +1,6 @@
 import { FastifyReply, FastifyRequest } from "fastify";
 import {
   getProfesseurById,
-  getProfesseurSimpleById,
   updateProfesseur,
   softDeleteProfesseur,
   isPrismaKnownError,
@@ -75,7 +74,7 @@ export async function createProfesseurController(
       });
     }
 
-    const { nom, prenom, matricule } = body;
+    const { nom, prenom } = body;
 
     if (!nom || nom.trim() === "") {
       return reply.code(400).send({ message: "Le nom est obligatoire" });
@@ -254,7 +253,7 @@ export async function editProfesseur(
   }
 
   try {
-    const professeurExistant = await getProfesseurSimpleById(request.server, id);
+    const professeurExistant = await getProfesseurById(request.server, id);
 
     if (!professeurExistant) {
       return reply.code(404).send({
@@ -334,7 +333,7 @@ export async function removeProfesseur(
       : undefined;
 
   try {
-    const professeurExistant = await getProfesseurSimpleById(request.server, id);
+    const professeurExistant = await getProfesseurById(request.server, id);
 
     if (!professeurExistant) {
       return reply.code(404).send({

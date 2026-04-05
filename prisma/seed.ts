@@ -12,11 +12,10 @@ export const prisma = new PrismaClient({
 });
 
 /*
-  ---------------------------
-  ROOMS PAR DÉFAUT
-  ---------------------------
+---------------------------
+ROOMS PAR DÉFAUT
+---------------------------
 */
-
 const INITIAL_ROOMS = [
   {
     id: 1,
@@ -34,7 +33,7 @@ const INITIAL_ROOMS = [
     type: "Laboratoire",
     capacity: 24,
     description:
-      "Laboratoire équipé d’ordinateurs pour les travaux pratiques et démonstrations techniques.",
+      "Laboratoire équipé d’ordinateurs pour les travaux pratiques.",
   },
   {
     id: 3,
@@ -43,17 +42,16 @@ const INITIAL_ROOMS = [
     type: "Amphithéâtre",
     capacity: 120,
     description:
-      "Grand amphithéâtre utilisé pour les cours à grand effectif et les présentations.",
+      "Grand amphithéâtre utilisé pour les cours à grand effectif.",
   },
 ];
 
 async function main() {
   /*
   ===========================
-  SEED ROLES
+  ROLES (inchangé)
   ===========================
   */
-
   console.log("Seeding roles...");
 
   const roles = [
@@ -78,10 +76,9 @@ async function main() {
 
   /*
   ===========================
-  SEED USERS
+  USERS (inchangé)
   ===========================
   */
-
   console.log("Seeding users...");
 
   const users = [
@@ -132,10 +129,9 @@ async function main() {
 
   /*
   ===========================
-  SEED TYPES DE SALLE
+  TYPES DE SALLE (inchangé)
   ===========================
   */
-
   console.log("Seeding room types...");
 
   const uniqueRoomTypes = [
@@ -157,7 +153,7 @@ async function main() {
 
   /*
   ===========================
-  SEED SALLES
+  SALLES (inchangé)
   ===========================
   */
   console.log("Seeding rooms...");
@@ -191,6 +187,141 @@ async function main() {
         creerLe: new Date(),
       },
     });
+  }
+
+  /*
+  ===========================
+  SPECIALITES (NOUVEAU)
+  ===========================
+  */
+  console.log("Seeding specialites...");
+
+  const specialites = ["Informatique", "Mathématiques", "Physique"];
+
+  for (const nom of specialites) {
+    const exists = await prisma.specialite.findFirst({ where: { nom } });
+
+    if (!exists) {
+      await prisma.specialite.create({
+        data: {
+          nom,
+          creerPar: "system",
+          creerLe: new Date(),
+        },
+      });
+    }
+  }
+
+  /*
+  ===========================
+  PROFESSEURS (NOUVEAU)
+  ===========================
+  */
+  console.log("Seeding professeurs...");
+
+  const profs = [
+    { nom: "Dupont", prenom: "Jean", matricule: "PROF001" },
+    { nom: "Nguyen", prenom: "Linh", matricule: "PROF002" },
+    { nom: "Smith", prenom: "John", matricule: "PROF003" },
+  ];
+
+  for (const p of profs) {
+    await prisma.professeur.upsert({
+      where: { matricule: p.matricule },
+      update: {},
+      create: {
+        ...p,
+        creerPar: "system",
+        creerLe: new Date(),
+      },
+    });
+  }
+
+  /*
+  ===========================
+  COURS (NOUVEAU - CORRIGÉ)
+  ===========================
+  */
+  console.log("Seeding cours...");
+
+  const info = await prisma.specialite.findFirst({
+    where: { nom: "Informatique" },
+  });
+
+  const math = await prisma.specialite.findFirst({
+    where: { nom: "Mathématiques" },
+  });
+
+  const cours = [
+    {
+      nom: "Algorithmique",
+      code: "INFO101",
+      duree: 60,
+      etape: 1,
+      specialiteId: info?.id,
+    },
+    {
+      nom: "Structures de données",
+      code: "INFO201",
+      duree: 75,
+      etape: 2,
+      specialiteId: info?.id,
+    },
+    {
+      nom: "Algèbre",
+      code: "MATH101",
+      duree: 60,
+      etape: 1,
+      specialiteId: math?.id,
+    },
+  ];
+
+  for (const c of cours) {
+    await prisma.cours.upsert({
+      where: { code: c.code },
+      update: {},
+      create: {
+        nom: c.nom,
+        code: c.code,
+        duree: c.duree,
+        etape: c.etape,
+        creerPar: "system",
+        creerLe: new Date(),
+        ...(c.specialiteId !== undefined && {
+          specialiteId: c.specialiteId,
+        }),
+      },
+    });
+  }
+
+  /*
+  ===========================
+  RELATION PROF <-> SPECIALITE (NOUVEAU)
+  ===========================
+  */
+  console.log("Seeding specialite_professeurs...");
+
+  const profList = await prisma.professeur.findMany();
+  const specList = await prisma.specialite.findMany();
+
+  for (const prof of profList) {
+    for (const spec of specList) {
+      const exists = await prisma.specialite_Professeur.findFirst({
+        where: {
+          professeurId: prof.id,
+          specialiteId: spec.id,
+        },
+      });
+
+      if (!exists && Math.random() > 0.5) {
+        await prisma.specialite_Professeur.create({
+          data: {
+            professeurId: prof.id,
+            specialiteId: spec.id,
+          },
+        });
+      }
+    }
   }
 
   console.log("Seed completed successfully !");
