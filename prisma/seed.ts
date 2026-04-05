@@ -7,324 +7,180 @@ const connectionString = process.env.DATABASE_URL;
 
 export const prisma = new PrismaClient({
   adapter: new PrismaPg({
-    connectionString: connectionString,
+    connectionString: connectionString || "",
   }),
 });
 
-/*
----------------------------
-ROOMS PAR DÉFAUT
----------------------------
-*/
-const INITIAL_ROOMS = [
-  {
-    id: 1,
-    code: "A101",
-    name: "Salle A101",
-    type: "Salle de cours",
-    capacity: 40,
-    description:
-      "Salle standard destinée aux cours magistraux et travaux dirigés.",
-  },
-  {
-    id: 2,
-    code: "LAB01",
-    name: "Laboratoire Info 1",
-    type: "Laboratoire",
-    capacity: 24,
-    description:
-      "Laboratoire équipé d’ordinateurs pour les travaux pratiques.",
-  },
-  {
-    id: 3,
-    code: "AMPHI1",
-    name: "Amphithéâtre Central",
-    type: "Amphithéâtre",
-    capacity: 120,
-    description:
-      "Grand amphithéâtre utilisé pour les cours à grand effectif.",
-  },
-];
-
 async function main() {
-  /*
-  ===========================
-  ROLES (inchangé)
-  ===========================
-  */
+  // --- ROLES ---
   console.log("Seeding roles...");
-
   const roles = [
-    { nom: "Administrateur", description: "Accès complet au système" },
-    {
-      nom: "Responsable administratif",
-      description: "Gère les utilisateurs et plannings",
-    },
+    { nom: "Administrateur", description: "Accès complet" },
+    { nom: "Responsable administratif", description: "Gère les plannings" },
   ];
-
   for (const r of roles) {
-    await prisma.role.upsert({
-      where: { nom: r.nom },
-      update: {},
-      create: {
-        ...r,
-        creerPar: "system",
-        creerLe: new Date(),
-      },
+    await prisma.role.upsert({ 
+      where: { nom: r.nom }, 
+      update: {}, 
+      create: { ...r, creerPar: "system" } 
     });
   }
 
-  /*
-  ===========================
-  USERS (inchangé)
-  ===========================
-  */
+  // --- USERS ---
   console.log("Seeding users...");
+  const roleAdmin = await prisma.role.findUnique({ where: { nom: "Administrateur" } });
+  if (!roleAdmin) throw new Error("Role Admin introuvable");
 
-  const users = [
-    {
+  const hashedPwd = await bcrypt.hash("Default123!", 10);
+  await prisma.user.upsert({
+    where: { email: "liliane@gmail.com" },
+    update: {},
+    create: {
       nom: "Kana",
       prenom: "Liliane",
       email: "liliane@gmail.com",
-      roleNom: "Administrateur",
+      mot_de_passe: hashedPwd,
+      statut: true,
+      roleId: roleAdmin.id,
+      creerPar: "system",
     },
-    {
-      nom: "Njeutsa",
-      prenom: "Hermann",
-      email: "hermann@gmail.com",
-      roleNom: "Responsable administratif",
-    },
-    {
-      nom: "Boyomo",
-      prenom: "Albert",
-      email: "albert@gmail.com",
-      roleNom: "Administrateur",
-    },
-  ];
+  });
 
-  for (const u of users) {
-    const role = await prisma.role.findUnique({
-      where: { nom: u.roleNom },
-    });
-
-    if (!role) throw new Error(`Role ${u.roleNom} introuvable`);
-
-    const hashedPwd = await bcrypt.hash("Default123!", 10);
-
-    await prisma.user.upsert({
-      where: { email: u.email },
-      update: {},
-      create: {
-        nom: u.nom,
-        prenom: u.prenom,
-        email: u.email,
-        mot_de_passe: hashedPwd,
-        statut: true,
-        roleId: role.id,
-        creerPar: "system",
-        creerLe: new Date(),
-      },
-    });
-  }
-
-  /*
-  ===========================
-  TYPES DE SALLE (inchangé)
-  ===========================
-  */
-  console.log("Seeding room types...");
-
-  const uniqueRoomTypes = [
-    ...new Set(INITIAL_ROOMS.map((room) => room.type)),
-  ];
-
-  for (const typeName of uniqueRoomTypes) {
-    await prisma.typeDeSalle.upsert({
-      where: { nom: typeName },
-      update: {},
-      create: {
-        nom: typeName,
-        description: `Type de salle : ${typeName}`,
-        creerPar: "system",
-        creerLe: new Date(),
-      },
-    });
-  }
-
-  /*
-  ===========================
-  SALLES (inchangé)
-  ===========================
-  */
+  // --- TYPES DE SALLE & SALLES ---
   console.log("Seeding rooms...");
+  const typeLabo = await prisma.typeDeSalle.upsert({
+    where: { nom: "Laboratoire" },
+    update: {},
+    create: { nom: "Laboratoire", creerPar: "system" },
+  });
 
-  for (const room of INITIAL_ROOMS) {
-    const type = await prisma.typeDeSalle.findUnique({
-      where: { nom: room.type },
-    });
+  await prisma.salle.upsert({
+    where: { code: "LAB01" },
+    update: {},
+    create: { 
+        code: "LAB01", 
+        nom: "Laboratoire Info 1", 
+        capacite: 24, 
+        typeDeSalleId: typeLabo.id, 
+        creerPar: "system" 
+    },
+  });
 
-    if (!type) {
-      throw new Error(`Type de salle "${room.type}" introuvable`);
-    }
-
-    await prisma.salle.upsert({
-      where: { code: room.code },
-      update: {
-        nom: room.name,
-        capacite: room.capacity,
-        description: room.description || null,
-        typeDeSalleId: type.id,
-        modifierPar: "system",
-        modifierLe: new Date(),
-      },
-      create: {
-        code: room.code,
-        nom: room.name,
-        capacite: room.capacity,
-        description: room.description || null,
-        typeDeSalleId: type.id,
-        creerPar: "system",
-        creerLe: new Date(),
-      },
-    });
-  }
-
-  /*
-  ===========================
-  SPECIALITES (NOUVEAU)
-  ===========================
-  */
+  // --- SPECIALITES ---
   console.log("Seeding specialites...");
-
-  const specialites = ["Informatique", "Mathématiques", "Physique"];
-
-  for (const nom of specialites) {
-    const exists = await prisma.specialite.findFirst({ where: { nom } });
-
-    if (!exists) {
-      await prisma.specialite.create({
-        data: {
-          nom,
-          creerPar: "system",
-          creerLe: new Date(),
-        },
-      });
-    }
-  }
-
-  /*
-  ===========================
-  PROFESSEURS (NOUVEAU)
-  ===========================
-  */
-  console.log("Seeding professeurs...");
-
-  const profs = [
-    { nom: "Dupont", prenom: "Jean", matricule: "PROF001" },
-    { nom: "Nguyen", prenom: "Linh", matricule: "PROF002" },
-    { nom: "Smith", prenom: "John", matricule: "PROF003" },
-  ];
-
-  for (const p of profs) {
-    await prisma.professeur.upsert({
-      where: { matricule: p.matricule },
-      update: {},
-      create: {
-        ...p,
-        creerPar: "system",
-        creerLe: new Date(),
-      },
+  let specInfo = await prisma.specialite.findFirst({ where: { nom: "Informatique" } });
+  if (!specInfo) {
+    specInfo = await prisma.specialite.create({
+      data: { nom: "Informatique", creerPar: "system" }
     });
   }
 
-  /*
-  ===========================
-  COURS (NOUVEAU - CORRIGÉ)
-  ===========================
-  */
+  // --- PROFESSEURS ---
+  console.log("Seeding profs...");
+  const prof = await prisma.professeur.upsert({
+    where: { matricule: "PROF001" },
+    update: {},
+    create: { nom: "Dupont", prenom: "Jean", matricule: "PROF001", creerPar: "system" },
+  });
+
+  // --- COURS ---
   console.log("Seeding cours...");
+  const coursData = {
+    nom: "Algorithmique",
+    code: "INFO101",
+    duree: 60,
+    etape: 1,
+    creerPar: "system",
+    ...(specInfo?.id ? { specialiteId: specInfo.id } : {})
+  };
 
-  const info = await prisma.specialite.findFirst({
-    where: { nom: "Informatique" },
+  await prisma.cours.upsert({
+    where: { code: "INFO101" },
+    update: {},
+    create: coursData,
   });
 
-  const math = await prisma.specialite.findFirst({
-    where: { nom: "Mathématiques" },
-  });
+  // --- DISPONIBILITÉS & PLAGES ---
+  console.log("Seeding availability...");
+  const jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
+  for (const j of jours) {
+    let disp = await prisma.disponibilite.findFirst({ where: { jour: j } });
+    if (!disp) {
+      disp = await prisma.disponibilite.create({ data: { jour: j, creerPar: "system" } });
+    }
 
-  const cours = [
-    {
-      nom: "Algorithmique",
-      code: "INFO101",
-      duree: 60,
-      etape: 1,
-      specialiteId: info?.id,
-    },
-    {
-      nom: "Structures de données",
-      code: "INFO201",
-      duree: 75,
-      etape: 2,
-      specialiteId: info?.id,
-    },
-    {
-      nom: "Algèbre",
-      code: "MATH101",
-      duree: 60,
-      etape: 1,
-      specialiteId: math?.id,
-    },
-  ];
+    // Création de deux créneaux par jour
+    const slots = [8, 14]; 
+    for (const startHour of slots) {
+      const hD = new Date(); hD.setHours(startHour, 0, 0, 0);
+      const hF = new Date(); hF.setHours(startHour + 2, 0, 0, 0);
 
-  for (const c of cours) {
-    await prisma.cours.upsert({
-      where: { code: c.code },
-      update: {},
-      create: {
-        nom: c.nom,
-        code: c.code,
-        duree: c.duree,
-        etape: c.etape,
-        creerPar: "system",
-        creerLe: new Date(),
-        ...(c.specialiteId !== undefined && {
-          specialiteId: c.specialiteId,
-        }),
-      },
-    });
-  }
-
-  /*
-  ===========================
-  RELATION PROF <-> SPECIALITE (NOUVEAU)
-  ===========================
-  */
-  console.log("Seeding specialite_professeurs...");
-
-  const profList = await prisma.professeur.findMany();
-  const specList = await prisma.specialite.findMany();
-
-  for (const prof of profList) {
-    for (const spec of specList) {
-      const exists = await prisma.specialite_Professeur.findFirst({
-        where: {
-          professeurId: prof.id,
-          specialiteId: spec.id,
-        },
+      let plage = await prisma.plageHoraire.findFirst({
+        where: { heure_debut: hD, heure_fin: hF }
       });
 
-      if (!exists && Math.random() > 0.5) {
-        await prisma.specialite_Professeur.create({
-          data: {
-            professeurId: prof.id,
-            specialiteId: spec.id,
-          },
+      if (!plage) {
+        plage = await prisma.plageHoraire.create({
+          data: { heure_debut: hD, heure_fin: hF, statut: true, creerPar: "system" }
+        });
+      }
+
+      const linkExists = await prisma.plageHoraire_Disponibilite.findFirst({
+        where: { plageHoraireId: plage.id, disponibiliteId: disp.id }
+      });
+
+      if (!linkExists) {
+        await prisma.plageHoraire_Disponibilite.create({
+          data: { plageHoraireId: plage.id, disponibiliteId: disp.id, creerPar: "system" }
         });
       }
     }
   }
 
-  console.log("Seed completed successfully !");
+  // --- SEANCES (MULTIPLES) ---
+  console.log("Seeding multiple seances...");
+  const allCours = await prisma.cours.findMany();
+  const allSalles = await prisma.salle.findMany();
+  const allPlages = await prisma.plageHoraire.findMany();
+
+  // Correction de l'erreur 'possibly undefined' en vérifiant que les listes ne sont pas vides
+  if (allCours.length > 0 && allSalles.length > 0 && allPlages.length > 0) {
+    
+    for (let i = 0; i < 10; i++) {
+      const c = allCours[i % allCours.length]!;
+      const s = allSalles[i % allSalles.length]!;
+      const pl = allPlages[i % allPlages.length]!;
+      
+      const dateSeance = new Date();
+      dateSeance.setDate(dateSeance.getDate() + (i % 5)); // Répartit sur 5 jours
+
+      // 4 séances libres (null) pour tester l'affectation, les autres affectées au prof
+      const targetProfId = i < 4 ? null : prof.id;
+
+      const seanceExist = await prisma.seance.findFirst({
+        where: { 
+          coursId: c.id, 
+          plageHoraireId: pl.id,
+          date: dateSeance 
+        }
+      });
+
+      if (!seanceExist) {
+        await prisma.seance.create({
+          data: {
+            date: dateSeance,
+            coursId: c.id,
+            salleId: s.id,
+            plageHoraireId: pl.id,
+            professeurId: targetProfId,
+            creerPar: "system"
+          }
+        });
+      }
+    }
+  }
+
+  console.log("Seed completed successfully with multiple seances!");
 }
 
 main()
