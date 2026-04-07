@@ -163,7 +163,7 @@ model TypeDeSalle {
 
 model Specialite {
   id  Int    @id @default(autoincrement())
-  nom String
+  nom String @unique
 
   cours Cours[]
 
@@ -244,6 +244,7 @@ model PlageHoraire {
   modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
+  @@unique([heure_debut, heure_fin])
   @@map("PlageHoraire")
 }
 
@@ -324,5 +325,6 @@ model PlageHoraire_Disponibilite {
   modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
+  @@unique([plageHoraireId, disponibiliteId])
   @@map("PlageHoraire_Disponibilite")
 }
