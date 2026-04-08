@@ -6,7 +6,8 @@ import {
   createProfesseur,
   getAllProfesseurs,
   affecterProfesseurASeance,
-  getSeancesSansProfesseur
+  getSeancesSansProfesseur,
+  getAllProfesseursWithPlanning
 } from "../professeur/professeur.service.js";
 
 type ProfesseurParams = { id: string };
@@ -90,5 +91,25 @@ export async function assignProfesseur(request: FastifyRequest<{ Params: Profess
     return reply.send({ message: "Affectation réussie" });
   } catch (error: any) {
     return reply.code(500).send({ message: "Erreur lors de l'affectation" });
+  }
+}
+
+export async function getAllProfesseursWithPlanningController(
+  request: FastifyRequest,
+  reply: FastifyReply
+) {
+  try {
+    const result = await getAllProfesseursWithPlanning(request.server);
+
+    return reply.send({
+      message: "Liste des professeurs avec leurs plannings récupérée avec succès",
+      data: result,
+    });
+  } catch (error: any) {
+    console.error("Erreur planning professeurs :", error);
+    return reply.code(500).send({
+      message: "Erreur lors de la récupération des professeurs avec leurs plannings",
+      error: error.message,
+    });
   }
 }

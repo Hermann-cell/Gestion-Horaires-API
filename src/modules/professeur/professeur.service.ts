@@ -135,6 +135,50 @@ export async function getSeancesSansProfesseur(app: FastifyInstance) {
   });
 }
 
+export async function getAllProfesseursWithPlanning(app: FastifyInstance) {
+  return app.prisma.professeur.findMany({
+    where: { supprimeLe: null },
+    orderBy: { id: "asc" },
+    include: {
+      seances: {
+        where: { supprimeLe: null },
+        orderBy: { date: "asc" },
+        include: {
+          cours: true,
+          salle: true,
+          plageHoraire: {
+            include: {
+              plageHoraire_Disponibilites: {
+                include: {
+                  disponibilite: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      specialite_professeurs: {
+        include: {
+          specialite: true,
+        },
+      },
+      disponibilite_professeurs: {
+        include: {
+          disponibilite: {
+            include: {
+              plageHoraire_Disponibilites: {
+                include: {
+                  plageHoraire: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 export function isPrismaKnownError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
   return error instanceof Prisma.PrismaClientKnownRequestError;
 }
