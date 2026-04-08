@@ -7,6 +7,7 @@ import {
   getAllProfesseursController,
   getAvailableSeances,
   assignProfesseur,
+  getAllProfesseursWithPlanningController
 } from "../professeur/professeur.controller.js";
 
 export async function professeurRoutes(app: FastifyInstance) {
@@ -14,6 +15,8 @@ export async function professeurRoutes(app: FastifyInstance) {
   app.get("/", getAllProfesseursController);
   app.post("/", createProfesseurController);
   app.get("/seances-disponibles", getAvailableSeances);
+  app.get("/all/plannings", getAllProfesseursWithPlanningController);
+
 
   // Routes avec paramètres
   app.get("/:id", getProfesseur);
