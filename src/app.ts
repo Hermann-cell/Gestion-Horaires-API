@@ -17,7 +17,7 @@ import { typeSalleRoutes } from "./modules/typeSalle/typeSalle.routes.js";
 import { specialiteRoutes } from "./modules/specialite/specialite.routes.js";
 import plageHoraireRoutes from "./modules/plageHoraire/plageHoraire.routes.js";
 import { seanceRoutes } from "./modules/seance/seance.routes.js";
-
+import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
 
 // Middleware
 import { authenticate } from "./modules/middlewares/authenticate.js";
@@ -74,6 +74,7 @@ export function buildApp() {
   app.register(typeSalleRoutes, { prefix: `${API_PREFIX}/typeSalles` });
   app.register(userRoutes, { prefix: `${API_PREFIX}/users` });
   app.register(emailRoutes, { prefix: `${API_PREFIX}/emails` });
+  app.register(dashboardRoutes, { prefix: `${API_PREFIX}/dashboard` });
 
   /*
   ===============================
