@@ -44,7 +44,7 @@ model Professeur {
 
   specialite_professeurs Specialite_Professeur[]
 
-  disponibilite_professeurs Disponibilite_Professeur[]
+  // disponibilite_professeurs Disponibilite_Professeur[]
 
   // Champs de traçabilité
   creerPar    String?
@@ -55,6 +55,7 @@ model Professeur {
   supprimeLe  DateTime?
 
   @@map("Professeur")
+  disponibilites Disponibilite[]
 }
 
 model Role {
@@ -184,7 +185,10 @@ model Disponibilite {
   id   Int    @id @default(autoincrement())
   jour String
 
-  disponibilite_professeurs Disponibilite_Professeur[]
+  professeurId Int
+  professeur Professeur @relation(fields: [professeurId], references: [id])
+
+  // disponibilite_professeurs Disponibilite_Professeur[]
 
   plageHoraire_Disponibilites PlageHoraire_Disponibilite[]
 
@@ -197,6 +201,7 @@ model Disponibilite {
   supprimeLe  DateTime?
 
   @@map("Disponibilite")
+  @@unique([professeurId, jour]) // un jour unique par prof
 }
 
 model Seance {
@@ -244,7 +249,7 @@ model PlageHoraire {
   modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
-  @@unique([heure_debut, heure_fin])
+  @@unique([heure_debut, heure_fin]) // pas de doublon
   @@map("PlageHoraire")
 }
 
@@ -288,25 +293,26 @@ model Specialite_Professeur {
   @@map("Specialite_Professeur")
 }
 
-model Disponibilite_Professeur {
-  id Int @id @default(autoincrement())
+// model Disponibilite_Professeur {
+//   id Int @id @default(autoincrement())
 
-  disponibiliteId Int           @map("disponibilite_id")
-  disponibilite   Disponibilite @relation(fields: [disponibiliteId], references: [id])
+//   disponibiliteId Int           @map("disponibilite_id")
+//   disponibilite   Disponibilite @relation(fields: [disponibiliteId], references: [id])
 
-  professeurId Int        @map("professeur_id")
-  professeur   Professeur @relation(fields: [professeurId], references: [id])
+//   professeurId Int        @map("professeur_id")
+//   professeur   Professeur @relation(fields: [professeurId], references: [id])
 
-  // Champs de traçabilité
-  creerPar    String?
-  modifierPar String?
-  supprimePar String?
-  creerLe     DateTime? @default(now())
-  modifierLe  DateTime? @updatedAt
-  supprimeLe  DateTime?
+//   // Champs de traçabilité
+//   creerPar    String?
+//   modifierPar String?
+//   supprimePar String?
+//   creerLe     DateTime? @default(now())
+//   modifierLe  DateTime? @updatedAt
+//   supprimeLe  DateTime?
 
-  @@map("Disponibilite_Professeur")
-}
+//   @@map("Disponibilite_Professeur")
+//   @@unique([professeurId, disponibiliteId])
+// }
 
 model PlageHoraire_Disponibilite {
   id Int @id @default(autoincrement())

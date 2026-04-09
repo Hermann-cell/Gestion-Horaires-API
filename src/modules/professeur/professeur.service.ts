@@ -27,28 +27,28 @@ export async function getProfesseurById(app: FastifyInstance, id: number) {
   return app.prisma.professeur.findFirst({
     where: { id, supprimeLe: null },
     include: {
-      seances: { 
-        include: { 
-          cours: true, 
+      seances: {
+        include: {
+          cours: true,
           plageHoraire: {
             include: {
               plageHoraire_Disponibilites: {
                 include: { disponibilite: true }
               }
             }
-          } 
-        } 
-      },
-      specialite_professeurs: { include: { specialite: true } },
-      disponibilite_professeurs: {
-        include: {
-          disponibilite: {
-            include: {
-              plageHoraire_Disponibilites: { include: { plageHoraire: true } }
-            }
           }
         }
       },
+      specialite_professeurs: { include: { specialite: true } },
+      disponibilites: {
+        include: {
+          plageHoraire_Disponibilites: {
+            include: {
+              plageHoraire: true
+            }
+          }
+        }
+      }
     },
   });
 }
@@ -64,8 +64,16 @@ export async function createProfesseur(app: FastifyInstance, data: CreateProfess
   });
 }
 
-export async function updateProfesseur(app: FastifyInstance, id: number, data: UpdateProfesseurPayload) {
+export async function updateProfesseur(
+  app: FastifyInstance,
+  id: number,
+  data: UpdateProfesseurPayload
+) {
   return app.prisma.$transaction(async (tx) => {
+
+    // =============================
+    // 1. UPDATE PROF
+    // =============================
     const updatedProf = await tx.professeur.update({
       where: { id },
       data: {
@@ -76,26 +84,82 @@ export async function updateProfesseur(app: FastifyInstance, id: number, data: U
       },
     });
 
-    if (data.disponibilites) {
-      await tx.disponibilite_Professeur.deleteMany({ where: { professeurId: id } });
-      for (const d of data.disponibilites) {
-        const jourEntry = await tx.disponibilite.create({
-          data: { jour: d.jour, creerPar: data.modifierPar }
-        });
-        const dateRef = new Date();
-        const hDebut = new Date(dateRef.setHours(parseInt(d.heure_debut), 0, 0, 0));
-        const hFin = new Date(dateRef.setHours(parseInt(d.heure_fin), 0, 0, 0));
-        const plage = await tx.plageHoraire.create({
-          data: { heure_debut: hDebut, heure_fin: hFin, statut: true, creerPar: data.modifierPar }
-        });
-        await tx.plageHoraire_Disponibilite.create({
-          data: { disponibiliteId: jourEntry.id, plageHoraireId: plage.id, creerPar: data.modifierPar }
-        });
-        await tx.disponibilite_Professeur.create({
-          data: { professeurId: id, disponibiliteId: jourEntry.id, creerPar: data.modifierPar }
+    if (!data.disponibilites) return updatedProf;
+
+    // =============================
+    // 2. SUPPRIMER anciennes dispos du prof
+    // =============================
+    await tx.plageHoraire_Disponibilite.deleteMany({
+      where: {
+        disponibilite: {
+          professeurId: id
+        }
+      }
+    });
+
+    await tx.disponibilite.deleteMany({
+      where: { professeurId: id }
+    });
+
+    // =============================
+    // 3. RECONSTRUCTION PROPRE
+    // =============================
+    for (const d of data.disponibilites) {
+
+      // ---------- JOUR (unique par prof)
+      const jourEntry = await tx.disponibilite.upsert({
+        where: {
+          professeurId_jour: {
+            professeurId: id,
+            jour: d.jour
+          }
+        },
+        update: {},
+        create: {
+          jour: d.jour,
+          professeurId: id,
+          creerPar: data.modifierPar
+        }
+      });
+
+      // ---------- HEURES
+      const baseDate = new Date();
+
+      const hDebut = new Date(baseDate);
+      hDebut.setHours(parseInt(d.heure_debut), 0, 0, 0);
+
+      const hFin = new Date(baseDate);
+      hFin.setHours(parseInt(d.heure_fin), 0, 0, 0);
+
+      // ---------- PLAGE (unique global)
+      let plage = await tx.plageHoraire.findFirst({
+        where: {
+          heure_debut: hDebut,
+          heure_fin: hFin
+        }
+      });
+
+      if (!plage) {
+        plage = await tx.plageHoraire.create({
+          data: {
+            heure_debut: hDebut,
+            heure_fin: hFin,
+            statut: true,
+            creerPar: data.modifierPar
+          }
         });
       }
+
+      // ---------- LIAISON
+      await tx.plageHoraire_Disponibilite.create({
+        data: {
+          plageHoraireId: plage.id,
+          disponibiliteId: jourEntry.id,
+          creerPar: data.modifierPar
+        }
+      });
     }
+
     return updatedProf;
   });
 }
@@ -115,9 +179,9 @@ export async function affecterProfesseurASeance(app: FastifyInstance, professeur
 
 export async function getSeancesSansProfesseur(app: FastifyInstance) {
   return app.prisma.seance.findMany({
-    where: { 
-      professeurId: null, 
-      supprimeLe: null 
+    where: {
+      professeurId: null,
+      supprimeLe: null
     },
     include: {
       cours: true,
@@ -162,19 +226,15 @@ export async function getAllProfesseursWithPlanning(app: FastifyInstance) {
           specialite: true,
         },
       },
-      disponibilite_professeurs: {
+      disponibilites: {
         include: {
-          disponibilite: {
+          plageHoraire_Disponibilites: {
             include: {
-              plageHoraire_Disponibilites: {
-                include: {
-                  plageHoraire: true,
-                },
-              },
-            },
-          },
-        },
-      },
+              plageHoraire: true
+            }
+          }
+        }
+      }
     },
   });
 }
