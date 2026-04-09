@@ -352,21 +352,17 @@ export async function getProfesseurActifById(app: FastifyInstance, id: number) {
           specialite: true,
         },
       },
-      disponibilite_professeurs: {
+      disponibilites: {
         where: {
           supprimeLe: null,
         },
         include: {
-          disponibilite: {
+          plageHoraire_Disponibilites: {
+            where: {
+              supprimeLe: null,
+            },
             include: {
-              plageHoraire_Disponibilites: {
-                where: {
-                  supprimeLe: null,
-                },
-                include: {
-                  plageHoraire: true,
-                },
-              },
+              plageHoraire: true,
             },
           },
         },
@@ -465,10 +461,8 @@ function isProfesseurDisponible(
 
   const jour = jours[date.getDay()];
 
-  return professeur.disponibilite_professeurs.some((dp) => {
-    const disponibilite = dp.disponibilite;
-
-    if (!disponibilite || disponibilite.supprimeLe !== null) {
+  return professeur.disponibilites.some((disponibilite) => {
+    if (disponibilite.supprimeLe !== null) {
       return false;
     }
 
