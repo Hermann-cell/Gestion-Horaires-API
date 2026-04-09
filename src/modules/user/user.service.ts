@@ -113,11 +113,23 @@ export async function deleteUser(
   id: number,
   supprimePar?: string | null
 ) {
+  // Récupérer le user pour avoir son email
+  const user = await fastify.prisma.user.findUnique({
+    where: { id },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
   return fastify.prisma.user.update({
     where: { id },
     data: {
       supprimeLe: new Date(),
       ...(supprimePar !== undefined ? { supprimePar } : {}),
+
+      // 👇 libère l'unicité de l'email
+      email: `${user.email}__deleted__${Date.now()}`,
     },
     include: { role: true },
   });
