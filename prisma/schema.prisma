@@ -229,6 +229,7 @@ model Seance {
   supprimeLe  DateTime?
 
   @@map("Seance")
+  @@unique([professeurId, date, plageHoraireId])
 }
 
 model PlageHoraire {

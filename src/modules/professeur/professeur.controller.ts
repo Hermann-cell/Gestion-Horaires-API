@@ -9,6 +9,7 @@ import {
   getSeancesSansProfesseur,
   getAllProfesseursWithPlanning
 } from "../professeur/professeur.service.js";
+import { error } from "console";
 
 type ProfesseurParams = { id: string };
 
@@ -83,14 +84,50 @@ export async function getAvailableSeances(request: FastifyRequest, reply: Fastif
   }
 }
 
-export async function assignProfesseur(request: FastifyRequest<{ Params: ProfesseurParams, Body: { seanceId: number } }>, reply: FastifyReply) {
-  const id = parseInt(request.params.id);
-  if (isNaN(id)) return reply.code(400).send({ message: "ID professeur invalide" });
+interface AssignProfBody {
+  seanceId: number;
+}
+
+export async function assignProfesseur(
+  request: FastifyRequest<{ Params: ProfesseurParams; Body: AssignProfBody }>,
+  reply: FastifyReply
+) {
+  const professeurId = Number(request.params.id);
+  const { seanceId } = request.body || {};
+
+  //  Validation
+  if (!Number.isInteger(professeurId)) {
+    return reply.code(400).send({ message: "ID professeur invalide" });
+  }
+
+  if (!Number.isInteger(seanceId)) {
+    return reply.code(400).send({ message: "seanceId invalide ou manquant" });
+  }
+
   try {
-    await affecterProfesseurASeance(request.server, id, request.body.seanceId, getAuteur(request));
-    return reply.send({ message: "Affectation réussie" });
+    const result = await affecterProfesseurASeance(
+      request.server,
+      professeurId,
+      seanceId,
+      getAuteur(request)
+    );
+
+    return reply.code(200).send({
+      message: "Affectation réussie",
+      data: result
+    });
   } catch (error: any) {
-    return reply.code(500).send({ message: "Erreur lors de l'affectation" });
+    //  erreurs métier
+    if (error?.message) {
+      return reply.code(400).send({ message: error.message });
+    }
+
+    //  erreurs système
+    request.log.error(error);
+
+    return reply.code(500).send({
+      message: "Erreur interne du serveur"
+    });
   }
 }
 
