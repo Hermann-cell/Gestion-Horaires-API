@@ -6,6 +6,7 @@ import {
   editSeance,
   removeSeance,
   assignProfesseurToSeance,
+  unassignProfesseurFromSeance,
 } from "./seance.controller.js";
 
 export async function seanceRoutes(app: FastifyInstance) {
@@ -21,4 +22,6 @@ export async function seanceRoutes(app: FastifyInstance) {
   app.delete("/:id", removeSeance);
 
   app.put("/:id/affecter-professeur", assignProfesseurToSeance);
+
+  app.delete("/:id/professeur", unassignProfesseurFromSeance);
 }

@@ -67,6 +67,12 @@ function normalizeNullableString(value: unknown): string | null {
   return typeof value === "string" ? value.trim() : null;
 }
 
+function getAuteur(request: FastifyRequest): string {
+  const user = request.user as any;
+  if (user && user.prenom && user.nom) return `${user.prenom} ${user.nom}`.trim();
+  return "Système / Admin";
+}
+
 function isValidDateString(value: unknown): boolean {
   if (typeof value !== "string") return false;
   return !Number.isNaN(new Date(value).getTime());
@@ -504,6 +510,58 @@ export async function assignProfesseurToSeance(
     ) {
       return reply.code(409).send({
         message: error.message,
+      });
+    }
+
+    return reply.code(500).send({
+      message: "Erreur interne du serveur",
+    });
+  }
+}
+
+/*
+================================
+API : RETIRER PROFESSEUR D'UNE SEANCE
+================================
+*/
+export async function unassignProfesseurFromSeance(
+  request: FastifyRequest<{ Params: SeanceParams }>,
+  reply: FastifyReply
+) {
+  const id = parseId(request.params.id);
+
+  if (!id) {
+    return reply.code(400).send({
+      message: "Identifiant de la séance invalide",
+    });
+  }
+
+  try {
+    const seance = await getSeanceById(request.server, id);
+
+    if (!seance) {
+      return reply.code(404).send({ message: "Séance introuvable" });
+    }
+
+    if (seance.professeurId === null) {
+      return reply.code(400).send({ message: "La séance n'a pas de professeur assigné" });
+    }
+
+    const updatedSeance = await updateSeance(request.server, id, {
+      professeurId: null,
+      modifierPar: getAuteur(request),
+    });
+
+    return reply.send({
+      message: "Professeur retiré de la séance avec succès",
+      data: updatedSeance,
+    });
+  } catch (error: unknown) {
+    request.log.error(error);
+
+    if (isPrismaKnownError(error) && error.code === "P2025") {
+      return reply.code(404).send({
+        message: "Séance introuvable",
       });
     }
 
