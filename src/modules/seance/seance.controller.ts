@@ -616,7 +616,7 @@ export async function removeSeance(
   const supprimePar =
     body.supprimePar !== undefined
       ? normalizeNullableString(body.supprimePar)
-      : undefined;
+      : getAuteur(request);
 
   try {
     const seanceExistante = await getSeanceById(request.server, id);
