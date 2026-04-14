@@ -8,18 +8,82 @@ import {
   assignProfesseurToSeance,
   unassignProfesseurFromSeance,
 } from "./seance.controller.js";
+import { authenticate } from "../middlewares/authenticate.js";
+import { authorize } from "../middlewares/authorize.js";
+
+const ALLOWED_ROLES = ["Administrateur", "Responsable administratif"];
+
+type SeanceParams = {
+  id: string;
+};
+
+type CreateSeanceBody = {
+  date: string;
+  coursId: number;
+  salleId: number;
+  plageHoraireId: number;
+  professeurId?: number | null;
+  creerPar?: string | null;
+};
+
+type UpdateSeanceBody = {
+  date?: string;
+  coursId?: number;
+  salleId?: number;
+  plageHoraireId?: number;
+  professeurId?: number | null;
+  modifierPar?: string | null;
+};
+
+type DeleteSeanceBody = {
+  supprimePar?: string | null;
+};
+
+type AffectProfesseurBody = {
+  professeurId: number;
+  modifierPar?: string | null;
+};
 
 export async function seanceRoutes(app: FastifyInstance) {
+  app.post<{ Body: CreateSeanceBody }>(
+    "/",
+    {
+      preHandler: [authenticate, authorize(ALLOWED_ROLES)],
+    },
+    addSeance
+  );
 
-  app.post("/", addSeance);
+  app.get(
+    "/",
+    {
+      preHandler: [authenticate, authorize(ALLOWED_ROLES)],
+    },
+    getSeances
+  );
 
-  app.get("/", getSeances);
+  app.get<{ Params: SeanceParams }>(
+    "/:id",
+    {
+      preHandler: [authenticate, authorize(ALLOWED_ROLES)],
+    },
+    getSeance
+  );
 
-  app.get("/:id", getSeance);
+  app.put<{ Params: SeanceParams; Body: UpdateSeanceBody }>(
+    "/:id",
+    {
+      preHandler: [authenticate, authorize(ALLOWED_ROLES)],
+    },
+    editSeance
+  );
 
-  app.put("/:id", editSeance);
-
-  app.delete("/:id", removeSeance);
+  app.delete<{ Params: SeanceParams; Body: DeleteSeanceBody }>(
+    "/:id",
+    {
+      preHandler: [authenticate, authorize(ALLOWED_ROLES)],
+    },
+    removeSeance
+  );
 
   app.put("/:id/affecter-professeur", assignProfesseurToSeance);
 

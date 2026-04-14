@@ -1,11 +1,19 @@
 import { FastifyRequest, FastifyReply } from "fastify";
 
 export function authorize(roles: string[]) {
-  return async (request: FastifyRequest, reply: FastifyReply) => {
-    await request.jwtVerify();
-    const userRole = (request.user as any).role; // ou typer proprement request.user
+  return async function (request: FastifyRequest, reply: FastifyReply) {
+    const userRole = request.user?.role;
+
+    if (!userRole) {
+      return reply.status(401).send({
+        error: "Utilisateur non authentifié",
+      });
+    }
+
     if (!roles.includes(userRole)) {
-      return reply.status(403).send({ error: "Accès refusé" });
+      return reply.status(403).send({
+        error: "Accès refusé",
+      });
     }
   };
 }
