@@ -20,7 +20,6 @@ import { seanceRoutes } from "./modules/seance/seance.routes.js";
 import { dashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
 
 // Middleware
-import { authenticate } from "./modules/middlewares/authenticate.js";
 import { roleRoutes } from "./modules/role/role.routes.js";
 
 export function buildApp() {
@@ -54,10 +53,6 @@ export function buildApp() {
 
   // Versioning API
   const API_PREFIX = "/api";
-
-   //NB: On peut décommenter les routes au fur et à mesure qu'on les implémente
-
-
   app.register(coursRoutes, { prefix: `${API_PREFIX}/cours` });
   // app.register(cours_programmeRoutes, { prefix: `${API_PREFIX}/cours_programmes` });
   // app.register(disponibiliteRoutes, { prefix: `${API_PREFIX}/disponibilites` });
@@ -76,16 +71,6 @@ export function buildApp() {
   app.register(emailRoutes, { prefix: `${API_PREFIX}/emails` });
   app.register(dashboardRoutes, { prefix: `${API_PREFIX}/dashboard` });
 
-  /*
-  ===============================
-  PROTECTED ROUTES (OPTIONNEL): A decommanter plus tard pour sécuriser l'API
-  ===============================
-  */
-
-  // Pour protéger toutes les routes
-  // app.addHook("preHandler", async (request, reply) => {
-  //   await authenticate(request, reply);
-  // });
 
   return app;
 }
