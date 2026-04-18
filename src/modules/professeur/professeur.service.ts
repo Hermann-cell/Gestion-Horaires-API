@@ -8,7 +8,7 @@ export type UpdateProfesseurPayload = {
   disponibilites?: Array<{ jour: string; heure_debut: string; heure_fin: string }>;
 };
 
-export type CreateProfesseurPayload = { nom: string; prenom: string; creerPar: string };
+export type CreateProfesseurPayload = { nom: string; prenom: string; creerPar: string; specialiteIds?: number[] };
 
 async function generateNextMatricule(app: FastifyInstance): Promise<string> {
   const professeurs = await app.prisma.professeur.findMany({ select: { matricule: true } });
@@ -59,8 +59,35 @@ export async function getAllProfesseurs(app: FastifyInstance) {
 
 export async function createProfesseur(app: FastifyInstance, data: CreateProfesseurPayload) {
   const matricule = await generateNextMatricule(app);
-  return app.prisma.professeur.create({
-    data: { nom: data.nom, prenom: data.prenom, matricule, creerPar: data.creerPar },
+  
+  return app.prisma.$transaction(async (tx) => {
+    // Créer le professeur
+    const prof = await tx.professeur.create({
+      data: { nom: data.nom, prenom: data.prenom, matricule, creerPar: data.creerPar },
+    });
+
+    // Assigner les spécialités si fournies
+    if (data.specialiteIds && data.specialiteIds.length > 0) {
+      for (const specialiteId of data.specialiteIds) {
+        await tx.specialite_Professeur.upsert({
+          where: {
+            professeurId_specialiteId: {
+              professeurId: prof.id,
+              specialiteId,
+            },
+          },
+          update: {},
+          create: {
+            professeurId: prof.id,
+            specialiteId,
+            creerPar: data.creerPar,
+            creerLe: new Date(),
+          },
+        });
+      }
+    }
+
+    return prof;
   });
 }
 
@@ -147,8 +174,15 @@ export async function updateProfesseur(
       }
 
       // Liaison
-      await tx.plageHoraire_Disponibilite.create({
-        data: {
+      await tx.plageHoraire_Disponibilite.upsert({
+        where: {
+          plageHoraireId_disponibiliteId: {
+            plageHoraireId: plage.id,
+            disponibiliteId: jourEntry.id
+          }
+        },
+        update: {},
+        create: {
           plageHoraireId: plage.id,
           disponibiliteId: jourEntry.id,
           creerPar: data.modifierPar
@@ -156,7 +190,34 @@ export async function updateProfesseur(
       });
     }
 
-    return updatedProf;
+    // Retourner le professeur avec les disponibilités complètes
+    return tx.professeur.findFirst({
+      where: { id },
+      include: {
+        seances: {
+          include: {
+            cours: true,
+            plageHoraire: {
+              include: {
+                plageHoraire_Disponibilites: {
+                  include: { disponibilite: true }
+                }
+              }
+            }
+          }
+        },
+        specialite_professeurs: { include: { specialite: true } },
+        disponibilites: {
+          include: {
+            plageHoraire_Disponibilites: {
+              include: {
+                plageHoraire: true
+              }
+            }
+          }
+        }
+      }
+    });
   });
 }
 
@@ -205,7 +266,7 @@ export async function affecterProfesseurASeance(
 
   if (!seance) throw new Error("Séance introuvable");
 
-  //  Calcul du jour
+  // Calcul du jour avec normalisation en minuscules
   const joursMap = [
     "dimanche",
     "lundi",
@@ -216,50 +277,65 @@ export async function affecterProfesseurASeance(
     "samedi"
   ];
 
-  const jour = joursMap[new Date(seance.date).getDay()] ?? "dimanche";
+  const jour = joursMap[new Date(seance.date).getDay()]?.toLowerCase() ?? "dimanche";
 
-  //  Récupération disponibilité
-  const disponibilite = await app.prisma.disponibilite.findFirst({
-    where: {
-      professeurId,
-      jour: {
-        equals: jour,
-        mode: "insensitive"
-      },
-      supprimeLe: null
-    },
+  // Récupération du professeur avec ses disponibilités
+  const prof = await app.prisma.professeur.findUnique({
+    where: { id: professeurId },
     include: {
-      plageHoraire_Disponibilites: {
+      disponibilites: {
+        where: { 
+          jour: {
+            equals: jour,
+            mode: "insensitive"
+          },
+          supprimeLe: null
+        },
         include: {
-          plageHoraire: true
+          plageHoraire_Disponibilites: {
+            include: {
+              plageHoraire: true
+            }
+          }
         }
       }
     }
   });
 
-  if (!disponibilite) {
-    throw new Error("Professeur non disponible ce jour");
+  if (!prof) throw new Error("Professeur introuvable");
+
+  // Vérifier que le professeur a au moins une disponibilité pour ce jour
+  if (!prof.disponibilites || prof.disponibilites.length === 0) {
+    throw new Error(`Professeur non disponible le ${jour}`);
   }
 
-  //  COMPARAISON PAR HEURE (CORRECTION MAJEURE)
-  const heureSeance = new Date(seance.plageHoraire.heure_debut).getHours();
+  // Récupération de l'heure de début de la séance (extraction robuste)
+  const heureDebut = new Date(seance.plageHoraire.heure_debut);
+  const heureSeance = heureDebut.getHours();
 
-  const estDisponible = disponibilite.plageHoraire_Disponibilites.some((ph) => {
-    const heureDispo = new Date(ph.plageHoraire.heure_debut).getHours();
-    return heureDispo === heureSeance;
+  // Vérifier que le professeur a une disponibilité à cette heure
+  const disponibiliteValide = prof.disponibilites[0]?.plageHoraire_Disponibilites?.some((ph) => {
+    const plageHeure = new Date(ph.plageHoraire.heure_debut).getHours();
+    return plageHeure === heureSeance;
   });
 
-  if (!estDisponible) {
-    throw new Error("Séance hors disponibilité du professeur");
+  if (!disponibiliteValide) {
+    const heuresDisponibles = prof.disponibilites[0]?.plageHoraire_Disponibilites
+      ?.map(ph => new Date(ph.plageHoraire.heure_debut).getHours())
+      ?.join(", ") || "Aucune";
+    throw new Error(
+      `Séance à ${heureSeance}h hors disponibilité. Heures disponibles: ${heuresDisponibles}h`
+    );
   }
 
-  //  Vérifier conflit
+  // Vérifier conflit (prof déjà assigné à cette date/horaire)
   const conflit = await app.prisma.seance.findFirst({
     where: {
       professeurId,
       date: seance.date,
       plageHoraireId: seance.plageHoraireId,
-      NOT: { id: seanceId }
+      NOT: { id: seanceId },
+      supprimeLe: null
     }
   });
 
@@ -267,7 +343,7 @@ export async function affecterProfesseurASeance(
     throw new Error("Conflit : le professeur a déjà une séance à cet horaire");
   }
 
-  //  Affectation
+  // Affectation
   return app.prisma.seance.update({
     where: { id: seanceId },
     data: {

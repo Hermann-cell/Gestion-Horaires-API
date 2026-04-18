@@ -21,6 +21,7 @@ type ProfesseurParams = {
 type CreateProfesseurBody = {
   nom: string;
   prenom: string;
+  specialiteIds?: number[];
 };
 
 type UpdateProfesseurBody = {

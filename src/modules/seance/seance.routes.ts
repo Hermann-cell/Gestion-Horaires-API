@@ -85,7 +85,19 @@ export async function seanceRoutes(app: FastifyInstance) {
     removeSeance
   );
 
-  app.put("/:id/affecter-professeur", assignProfesseurToSeance);
+  app.put<{ Params: SeanceParams; Body: AffectProfesseurBody }>(
+    "/:id/affecter-professeur",
+    {
+      preHandler: [authenticate, authorize(ALLOWED_ROLES)],
+    },
+    assignProfesseurToSeance
+  );
 
-  app.delete("/:id/professeur", unassignProfesseurFromSeance);
+  app.delete<{ Params: SeanceParams }>(
+    "/:id/professeur",
+    {
+      preHandler: [authenticate, authorize(ALLOWED_ROLES)],
+    },
+    unassignProfesseurFromSeance
+  );
 }

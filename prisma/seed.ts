@@ -194,15 +194,31 @@ async function main() {
   */
   console.log("Seeding specialites...");
 
-  const specialite = await prisma.specialite.upsert({
-    where: { nom: "Informatique" },
-    update: {},
-    create: {
-      nom: "Informatique",
-      creerPar: "system",
-      creerLe: new Date(),
-    },
-  });
+  const specialitesData = [
+    { nom: "Informatique" },
+    { nom: "Mathématiques" },
+    { nom: "Physique" },
+    { nom: "Chimie" },
+    { nom: "Biologie" },
+    { nom: "Génie Civil" },
+  ];
+
+  const specialites = [];
+
+  for (const spec of specialitesData) {
+    const specialite = await prisma.specialite.upsert({
+      where: { nom: spec.nom },
+      update: {},
+      create: {
+        nom: spec.nom,
+        creerPar: "system",
+        creerLe: new Date(),
+      },
+    });
+    specialites.push(specialite);
+  }
+
+  const specialite = specialites[0]; // Pour la compatibilité avec le reste du seed
 
   /*
   ===========================
@@ -233,6 +249,79 @@ async function main() {
 
     profs.push(prof);
   }
+
+  /*
+  ===========================
+  SEED AFFECTATION PROFESSEURS - SPECIALITES
+  ===========================
+  */
+  console.log("Seeding professeur-specialite affectations...");
+
+  for (let i = 0; i < profs.length; i++) {
+    const prof = profs[i];
+    const spec = specialites[i % specialites.length]; // Distribuer les spécialités aux professeurs
+
+    if (!prof || !spec) continue;
+
+    await prisma.specialite_Professeur.upsert({
+      where: {
+        professeurId_specialiteId: {
+          professeurId: prof.id,
+          specialiteId: spec.id,
+        },
+      },
+      update: {},
+      create: {
+        professeurId: prof.id,
+        specialiteId: spec.id,
+        creerPar: "system",
+        creerLe: new Date(),
+      },
+    });
+  }
+  /*
+  ===========================
+  SEED PLAGES HORAIRES
+  ===========================
+  */
+  console.log("Seeding plages horaires...");
+
+  let plages = await prisma.plageHoraire.findMany();
+
+  if (!plages.length) {
+    console.log("Création de plages horaires globales...");
+    const plageTemplates = [
+      { debut: "08:00", fin: "09:30" },
+      { debut: "09:45", fin: "11:15" },
+      { debut: "11:30", fin: "13:00" },
+      { debut: "14:00", fin: "15:30" },
+    ];
+
+    for (const p of plageTemplates) {
+      const partsD = p.debut.split(":");
+      const hD = Number(partsD[0]) || 0;
+      const mD = Number(partsD[1]) || 0;
+      const partsF = p.fin.split(":");
+      const hF = Number(partsF[0]) || 0;
+      const mF = Number(partsF[1]) || 0;
+
+      const heureDebut = new Date();
+      heureDebut.setHours(hD, mD, 0, 0);
+
+      const heureFin = new Date();
+      heureFin.setHours(hF, mF, 0, 0);
+
+      await prisma.plageHoraire.upsert({
+        where: { heure_debut_heure_fin: { heure_debut: heureDebut, heure_fin: heureFin } },
+        update: {},
+        create: { heure_debut: heureDebut, heure_fin: heureFin, creerPar: "system" },
+      });
+    }
+
+    // rechargement pour utiliser dans les disponibilités
+    plages = await prisma.plageHoraire.findMany();
+  }
+
   /*
   ===========================
   SEED COURS
@@ -249,13 +338,18 @@ async function main() {
 
   const coursList = [];
 
-  for (const c of coursDataList) {
+  for (let i = 0; i < coursDataList.length; i++) {
+    const c = coursDataList[i];
+    const specialite = specialites[i % specialites.length]; // Distribuer les cours sur les spécialités distinctes
+
+    if (!specialite || !c) continue;
+
     const cours = await prisma.cours.upsert({
       where: { code: c.code },
       update: {},
       create: {
         ...c,
-        specialiteId: specialite.id,
+        specialiteId: specialite?.id || null,
         creerPar: "system",
         creerLe: new Date(),
       },
@@ -264,13 +358,41 @@ async function main() {
     coursList.push(cours);
   }
 
-
   /*
   ===========================
-  SEED SEANCES (MULTIPLES)
+  SEED DISPONIBILITES PAR PROF
   ===========================
   */
-  console.log("Seeding seances...");
+  console.log("Seeding disponibilites par prof...");
+
+  for (const prof of profs) {
+    const jours = ["Lundi", "Mardi"];
+    for (let i = 0; i < jours.length; i++) {
+      const jour = jours[i]!;
+
+      // Création d'une dispo par professeur et par jour
+      const dispo = await prisma.disponibilite.upsert({
+        where: { professeurId_jour: { professeurId: prof.id, jour } },
+        update: {},
+        create: { professeurId: prof.id, jour, creerPar: "system" },
+      });
+
+      // Lien dispo ↔ plages horaires
+      for (const pl of plages) {
+        await prisma.plageHoraire_Disponibilite.upsert({
+          where: { plageHoraireId_disponibiliteId: { plageHoraireId: pl.id, disponibiliteId: dispo.id } },
+          update: {},
+          create: { plageHoraireId: pl.id, disponibiliteId: dispo.id, creerPar: "system" },
+        });
+      }
+    }
+  }
+  /*
+  ===========================
+  SEED SEANCES AVEC PROF
+  ===========================
+  */
+  console.log("Seeding seances avec prof...");
 
   const allSalles = await prisma.salle.findMany();
 
@@ -280,206 +402,68 @@ async function main() {
 
   for (let i = 0; i < profs.length; i++) {
     const prof = profs[i];
+    if (!prof) continue;
     const cours = coursList[i % coursList.length];
+    if (!cours) continue;
 
-    if (!prof || !cours) continue;
-
-    const disponibilites = await prisma.disponibilite.findMany({
+    const dispoProf = await prisma.disponibilite.findMany({
       where: { professeurId: prof.id },
-      include: {
-        plageHoraire_Disponibilites: {
-          include: {
-            plageHoraire: true,
-          },
-        },
-      },
+      include: { plageHoraire_Disponibilites: { include: { plageHoraire: true } } },
     });
 
-    const plages = disponibilites.flatMap(d =>
-      d.plageHoraire_Disponibilites.map(p => p.plageHoraire)
-    );
-
-    console.log(`Prof ${prof.id} → ${plages.length} plages`);
-
-    //  fallback si aucune plage
-    if (!plages.length) {
-      console.log("⚠️ Aucune plage pour ce prof, fallback global");
-
-      const fallbackPlages = await prisma.plageHoraire.findMany();
-
-      if (!fallbackPlages.length) continue;
-
-      plages.push(...fallbackPlages);
-    }
+    let plagesProf = dispoProf.flatMap(d => d.plageHoraire_Disponibilites.map(p => p.plageHoraire));
+    if (!plagesProf.length) plagesProf = plages;
 
     for (let j = 0; j < 3; j++) {
+      const pl = plagesProf[j % plagesProf.length];
+      const salle = allSalles[j % allSalles.length];
+      if (!pl || !salle) continue;
 
-      const pl = plages[(i + j) % plages.length];
-      const s = allSalles[(i + j) % allSalles.length];
-
-      if (!pl || !s) continue;
-
-      //  date propre (évite conflits)
       const date = new Date();
       date.setHours(0, 0, 0, 0);
-      date.setDate(date.getDate() + j);
+      date.setDate(date.getDate() + j + i * 3);
 
       const exists = await prisma.seance.findFirst({
-        where: {
-          coursId: cours.id,
-          professeurId: prof.id,
-          plageHoraireId: pl.id,
-          date: date,
-        },
+        where: { coursId: cours.id, professeurId: prof.id, plageHoraireId: pl.id, date },
       });
 
       if (!exists) {
-        console.log(` Création séance prof ${prof.id}`);
-
         await prisma.seance.create({
-          data: {
-            date,
-            coursId: cours.id,
-            salleId: s.id,
-            plageHoraireId: pl.id,
-            professeurId: prof.id,
-            creerPar: "system",
-          },
+          data: { date, coursId: cours.id, salleId: salle.id, plageHoraireId: pl.id, professeurId: prof.id, creerPar: "system" },
         });
+        console.log(`Création séance prof ${prof.id} → ${date.toDateString()}`);
       }
     }
   }
 
-// --------------------
-// Plages horaires globales
-// --------------------
-let plages = await prisma.plageHoraire.findMany();
-if (!plages.length) {
-  console.log("Création de plages horaires globales...");
-  const plageTemplates = [
-    { debut: "08:00", fin: "09:30" },
-    { debut: "09:45", fin: "11:15" },
-    { debut: "11:30", fin: "13:00" },
-    { debut: "14:00", fin: "15:30" },
-  ];
+  /*
+  ===========================
+  SEED SEANCES SANS PROF
+  ===========================
+  */
+  console.log("Seeding seances sans prof...");
 
-  for (const p of plageTemplates) {
-    const partsD = p.debut.split(":");
-    const hD = Number(partsD[0]) || 0;
-    const mD = Number(partsD[1]) || 0;
-    const partsF = p.fin.split(":");
-    const hF = Number(partsF[0]) || 0;
-    const mF = Number(partsF[1]) || 0;
-
-    const heureDebut = new Date();
-    heureDebut.setHours(hD, mD, 0, 0);
-
-    const heureFin = new Date();
-    heureFin.setHours(hF, mF, 0, 0);
-
-    await prisma.plageHoraire.upsert({
-      where: { heure_debut_heure_fin: { heure_debut: heureDebut, heure_fin: heureFin } },
-      update: {},
-      create: { heure_debut: heureDebut, heure_fin: heureFin, creerPar: "system" },
-    });
-  }
-
-  // rechargement pour utiliser dans les disponibilités
-  plages = await prisma.plageHoraire.findMany();
-}
-
-// --------------------
-// Disponibilités par prof
-// --------------------
-console.log("Seeding disponibilites par prof...");
-for (const prof of profs) {
-  const jours = ["Lundi", "Mardi"];
-  for (let i = 0; i < jours.length; i++) {
-    const jour = jours[i]!;
-
-    // Création d'une dispo par professeur et par jour
-    const dispo = await prisma.disponibilite.upsert({
-      where: { professeurId_jour: { professeurId: prof.id, jour } },
-      update: {},
-      create: { professeurId: prof.id, jour, creerPar: "system" },
-    });
-
-    // Lien dispo ↔ plages horaires
-    for (const pl of plages) {
-      await prisma.plageHoraire_Disponibilite.upsert({
-        where: { plageHoraireId_disponibiliteId: { plageHoraireId: pl.id, disponibiliteId: dispo.id } },
-        update: {},
-        create: { plageHoraireId: pl.id, disponibiliteId: dispo.id, creerPar: "system" },
-      });
-    }
-  }
-}
-
-// --------------------
-// Séances avec prof
-// --------------------
-console.log("Seeding seances avec prof...");
-for (let i = 0; i < profs.length; i++) {
-  const prof = profs[i];
-  if (!prof) continue;
-  const cours = coursList[i % coursList.length];
-  if (!cours) continue;
-
-  const dispoProf = await prisma.disponibilite.findMany({
-    where: { professeurId: prof.id },
-    include: { plageHoraire_Disponibilites: { include: { plageHoraire: true } } },
-  });
-
-  let plagesProf = dispoProf.flatMap(d => d.plageHoraire_Disponibilites.map(p => p.plageHoraire));
-  if (!plagesProf.length) plagesProf = plages;
-
-  for (let j = 0; j < 3; j++) {
-    const pl = plagesProf[j % plagesProf.length];
-    const salle = allSalles[j % allSalles.length];
-    if (!pl || !salle) continue;
+  for (let i = 0; i < 5; i++) {
+    const cours = coursList[i % coursList.length];
+    const salle = allSalles[i % allSalles.length];
+    const pl = plages[i % plages.length];
+    if (!cours || !salle || !pl) continue;
 
     const date = new Date();
     date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + j + i * 3);
+    date.setDate(date.getDate() + i + 100);
 
     const exists = await prisma.seance.findFirst({
-      where: { coursId: cours.id, professeurId: prof.id, plageHoraireId: pl.id, date },
+      where: { coursId: cours.id, professeurId: null, plageHoraireId: pl.id, date },
     });
 
     if (!exists) {
       await prisma.seance.create({
-        data: { date, coursId: cours.id, salleId: salle.id, plageHoraireId: pl.id, professeurId: prof.id, creerPar: "system" },
+        data: { date, coursId: cours.id, salleId: salle.id, plageHoraireId: pl.id, professeurId: null, creerPar: "system" },
       });
-      console.log(`Création séance prof ${prof.id} → ${date.toDateString()}`);
+      console.log(`Création séance sans prof → ${date.toDateString()}`);
     }
   }
-}
-
-// --------------------
-// Séances sans prof
-// --------------------
-console.log("Seeding seances sans prof...");
-for (let i = 0; i < 5; i++) {
-  const cours = coursList[i % coursList.length];
-  const salle = allSalles[i % allSalles.length];
-  const pl = plages[i % plages.length];
-  if (!cours || !salle || !pl) continue;
-
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  date.setDate(date.getDate() + i + 100);
-
-  const exists = await prisma.seance.findFirst({
-    where: { coursId: cours.id, professeurId: null, plageHoraireId: pl.id, date },
-  });
-
-  if (!exists) {
-    await prisma.seance.create({
-      data: { date, coursId: cours.id, salleId: salle.id, plageHoraireId: pl.id, professeurId: null, creerPar: "system" },
-    });
-    console.log(`Création séance sans prof → ${date.toDateString()}`);
-  }
-}
   
   console.log("Seed completed successfully !");
 }

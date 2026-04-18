@@ -16,11 +16,14 @@ type ProfesseurParams = { id: string };
 interface CreateProfesseurBody {
   nom: string;
   prenom: string;
+  specialiteIds?: number[];
 }
 
 interface UpdateProfesseurBody {
   nom?: string;
   prenom?: string;
+  specialiteIds?: number[];
+
 }
 
 const getAuteur = (req: FastifyRequest): string => {
@@ -31,11 +34,23 @@ const getAuteur = (req: FastifyRequest): string => {
 
 export async function createProfesseurController(request: FastifyRequest<{ Body: CreateProfesseurBody }>, reply: FastifyReply) {
   try {
-    const { nom, prenom } = request.body;
+    const { nom, prenom, specialiteIds } = request.body;
     if (!nom || !prenom) return reply.code(400).send({ message: "Nom et prénom requis" });
-    const result = await createProfesseur(request.server, { nom, prenom, creerPar: getAuteur(request) });
+    
+    const payload: Partial<CreateProfesseurBody> & { nom: string; prenom: string; creerPar: string } = { 
+      nom, 
+      prenom,
+      creerPar: getAuteur(request) 
+    };
+    
+    if (specialiteIds) {
+      payload.specialiteIds = specialiteIds;
+    }
+    
+    const result = await createProfesseur(request.server, payload as CreateProfesseurBody & { creerPar: string });
     return reply.code(201).send(result);
   } catch (err) {
+    console.error("Erreur création professeur:", err);
     return reply.code(500).send({ message: "Erreur lors de la création" });
   }
 }

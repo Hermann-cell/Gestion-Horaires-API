@@ -291,6 +291,7 @@ model Specialite_Professeur {
   modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
+  @@unique([professeurId, specialiteId])
   @@map("Specialite_Professeur")
 }
 
