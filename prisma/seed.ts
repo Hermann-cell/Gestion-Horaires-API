@@ -222,6 +222,35 @@ async function main() {
 
   /*
   ===========================
+  SEED PROGRAMMES
+  ===========================
+  */
+  console.log("Seeding programmes...");
+
+  const programmesData = [
+    { nom: "Licence Informatique", description: "Programme de licence en informatique" },
+    { nom: "Licence Mathématiques", description: "Programme de licence en mathématiques" },
+    { nom: "Master Génie Civil", description: "Programme de master en génie civil" },
+  ];
+
+  const programmes = [];
+
+  for (const prog of programmesData) {
+    const programme = await prisma.programme.upsert({
+      where: { nom: prog.nom },
+      update: {},
+      create: {
+        nom: prog.nom,
+        description: prog.description,
+        creerPar: "system",
+        creerLe: new Date(),
+      },
+    });
+    programmes.push(programme);
+  }
+
+  /*
+  ===========================
   SEED PROFESSEURS
   ===========================
   */
@@ -329,18 +358,25 @@ async function main() {
   */
   console.log("Seeding cours...");
 
+  const allTypesDesSalles = await prisma.typeDeSalle.findMany();
+  if (!allTypesDesSalles.length) {
+    throw new Error("Pas de types de salle");
+  }
+
   const coursDataList = [
-    { code: "INFO101", nom: "Algorithmique", duree: 60, etape: 1 },
-    { code: "INFO102", nom: "Structures de données", duree: 60, etape: 1 },
-    { code: "INFO201", nom: "Bases de données", duree: 90, etape: 2 },
-    { code: "INFO202", nom: "Programmation Web", duree: 90, etape: 2 },
+    { code: "INFO101", nom: "Algorithmique", duree: 60, etape: 1, typeIndex: 0, progIndex: 0 },
+    { code: "INFO102", nom: "Structures de données", duree: 60, etape: 1, typeIndex: 1, progIndex: 0 },
+    { code: "INFO201", nom: "Bases de données", duree: 90, etape: 2, typeIndex: 0, progIndex: 0 },
+    { code: "INFO202", nom: "Programmation Web", duree: 90, etape: 2, typeIndex: 1, progIndex: 0 },
   ];
 
   const coursList = [];
 
   for (let i = 0; i < coursDataList.length; i++) {
     const c = coursDataList[i];
+    if (!c) continue;
     const specialite = specialites[i % specialites.length]; // Distribuer les cours sur les spécialités distinctes
+    const typeDeSalle = allTypesDesSalles[c.typeIndex % allTypesDesSalles.length];
 
     if (!specialite || !c) continue;
 
@@ -348,14 +384,42 @@ async function main() {
       where: { code: c.code },
       update: {},
       create: {
-        ...c,
+        code: c.code,
+        nom: c.nom,
+        duree: c.duree,
+        etape: c.etape,
+        est_harchive: false,
         specialiteId: specialite?.id || null,
+        typeDeSalleId: typeDeSalle?.id || null,
         creerPar: "system",
         creerLe: new Date(),
       },
     });
 
     coursList.push(cours);
+
+    // Associer le cours à un programme
+    const programme = programmes[c.progIndex % programmes.length];
+    if (programme && cours) {
+      const existingRelation = await prisma.cours_Programme.findFirst({
+        where: {
+          coursId: cours.id,
+          programmeId: programme.id,
+        },
+      });
+
+      if (!existingRelation) {
+        await prisma.cours_Programme.create({
+          data: {
+            coursId: cours.id,
+            programmeId: programme.id,
+            creerPar: "system",
+            creerLe: new Date(),
+          },
+        });
+        console.log(`Cours ${cours.nom} associé au programme ${programme.nom}`);
+      }
+    }
   }
 
   /*

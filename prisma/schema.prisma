@@ -106,7 +106,7 @@ model Cours {
 
 model Programme {
   id          Int     @id @default(autoincrement())
-  nom         String
+  nom         String  @unique
   description String?
 
   cours_programmes Cours_Programme[]
