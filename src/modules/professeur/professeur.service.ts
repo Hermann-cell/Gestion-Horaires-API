@@ -111,6 +111,39 @@ export async function updateProfesseur(
 
     if (!data.disponibilites) return updatedProf;
 
+    // 🔥 VALIDATION PRÉALABLE: Vérifier les heures valides et les chevauchements
+    for (const d of data.disponibilites) {
+      const heureDebut = parseInt(d.heure_debut);
+      const heureFin = parseInt(d.heure_fin);
+
+      // Vérifier que l'heure début < heure fin
+      if (isNaN(heureDebut) || isNaN(heureFin) || heureDebut >= heureFin) {
+        throw new Error(
+          `Heures invalides pour ${d.jour}: ${d.heure_debut}h doit être < ${d.heure_fin}h`
+        );
+      }
+
+      // Vérifier chevauchement avec autres disponibilités du même jour
+      const sameDayDispos = data.disponibilites.filter(
+        (other) => other.jour.toLowerCase() === d.jour.toLowerCase()
+      );
+
+      for (const other of sameDayDispos) {
+        if (other === d) continue; // Skip self
+
+        const otherDebut = parseInt(other.heure_debut);
+        const otherFin = parseInt(other.heure_fin);
+
+        // Vérifier chevauchement: 
+        // Overlap si: debut1 < fin2 ET fin1 > debut2
+        if (heureDebut < otherFin && heureFin > otherDebut) {
+          throw new Error(
+            `Chevauchement de disponibilités le ${d.jour}: ${heureDebut}h-${heureFin}h chevauche ${otherDebut}h-${otherFin}h`
+          );
+        }
+      }
+    }
+
     // 2. Suppression des anciennes dispos
     await tx.plageHoraire_Disponibilite.deleteMany({
       where: {
