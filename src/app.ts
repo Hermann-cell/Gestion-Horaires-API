@@ -41,8 +41,13 @@ export function buildApp() {
 
   // CORS (pour React + Vite)
   app.register(cors, {
-    origin: ["http://localhost:5173"],
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:3000",
+      process.env.FRONTEND_URL || "https://gestion-horaires-ui.vercel.app"
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true
   });
 
   /*
