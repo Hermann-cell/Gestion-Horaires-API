@@ -39,13 +39,34 @@ export function buildApp() {
     secret: process.env.JWT_SECRET || "supersecretkey",
   });
 
+  // CORS - Fonction dynamique pour accepter les URLs Vercel
+  const allowedOrigins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+  ];
+
+  // Si FRONTEND_URL est défini, l'ajouter à la liste
+  if (process.env.FRONTEND_URL) {
+    allowedOrigins.push(process.env.FRONTEND_URL);
+  }
+
+  const corsOrigin = async (origin: string | undefined): Promise<boolean> => {
+    // Vérifier la liste blanche fixe
+    if (origin && allowedOrigins.includes(origin)) {
+      return true;
+    }
+
+    // Accepter tous les domaines Vercel (production et preview)
+    if (origin && origin.includes(".vercel.app")) {
+      return true;
+    }
+
+    return false;
+  };
+
   // CORS (pour React + Vite)
   app.register(cors, {
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:3000",
-      process.env.FRONTEND_URL || "https://gestion-horaires-ui.vercel.app"
-    ],
+    origin: corsOrigin,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true
   });
