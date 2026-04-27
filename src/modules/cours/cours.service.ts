@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { Prisma } from "../../../generated/prisma/client.js";
+import { Prisma } from "@prisma/client";
 
 /*
 ================================

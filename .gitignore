@@ -28,7 +28,6 @@ Thumbs.db
 
 # Prisma generated files
 /generated/prisma
-/prisma/migrations/
 
 # Optional: coverage reports (if you use testing)
 coverage/

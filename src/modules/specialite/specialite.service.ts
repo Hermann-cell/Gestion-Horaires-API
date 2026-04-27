@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import type { Prisma } from "../../../generated/prisma/client.js";
+import type { Prisma } from "@prisma/client";
 
 export type SpecialiteFilters = {
   nom?: string;
