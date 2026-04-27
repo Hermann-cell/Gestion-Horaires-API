@@ -54,7 +54,18 @@ export async function getProfesseurById(app: FastifyInstance, id: number) {
 }
 
 export async function getAllProfesseurs(app: FastifyInstance) {
-  return app.prisma.professeur.findMany({ where: { supprimeLe: null }, orderBy: { id: "asc" } });
+  return app.prisma.professeur.findMany({
+    where: { supprimeLe: null },
+    orderBy: { id: "asc" },
+    include: {
+      specialite_professeurs: {
+        where: { supprimeLe: null },
+        include: {
+          specialite: true,
+        },
+      },
+    },
+  });
 }
 
 export async function createProfesseur(app: FastifyInstance, data: CreateProfesseurPayload) {
