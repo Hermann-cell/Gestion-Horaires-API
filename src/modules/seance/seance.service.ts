@@ -94,11 +94,16 @@ export async function createSeance(
       cours.specialiteId !== undefined
     ) {
       const professeurHasSpecialite = professeur.specialite_professeurs.some(
-        (sp) => sp.specialiteId === cours.specialiteId
+        (sp) => sp.specialiteId === cours.specialiteId && sp.supprimeLe === null
       );
 
       if (!professeurHasSpecialite) {
-        throw new Error("La spécialité du professeur ne correspond pas à celle requise pour ce cours");
+        const coursSpecialite = cours.specialite?.nom || "inconnue";
+        const professeurSpecialites = professeur.specialite_professeurs
+          .filter((sp) => sp.supprimeLe === null)
+          .map((sp) => sp.specialite?.nom)
+          .join(", ") || "Aucune";
+        throw new Error(`Le professeur n'a pas la spécialité requise. Cours: ${coursSpecialite}, Spécialités du professeur: ${professeurSpecialites}`);
       }
     }
 
@@ -237,11 +242,16 @@ export async function updateSeance(
       cours.specialiteId !== undefined
     ) {
       const professeurHasSpecialite = professeur.specialite_professeurs.some(
-        (sp) => sp.specialiteId === cours.specialiteId
+        (sp) => sp.specialiteId === cours.specialiteId && sp.supprimeLe === null
       );
 
       if (!professeurHasSpecialite) {
-        throw new Error("La spécialité du professeur ne correspond pas à celle requise pour ce cours");
+        const coursSpecialite = cours.specialite?.nom || "inconnue";
+        const professeurSpecialites = professeur.specialite_professeurs
+          .filter((sp) => sp.supprimeLe === null)
+          .map((sp) => sp.specialite?.nom)
+          .join(", ") || "Aucune";
+        throw new Error(`Le professeur n'a pas la spécialité requise. Cours: ${coursSpecialite}, Spécialités du professeur: ${professeurSpecialites}`);
       }
     }
 
