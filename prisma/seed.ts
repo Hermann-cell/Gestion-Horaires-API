@@ -557,42 +557,84 @@ async function main() {
 SEED PROGRAMME
 ===========================
 */
-  const programmes = [
-    {
-      nom: "Informatique",
-      description: "Programme de développement logiciel et systèmes informatiques",
-      creerPar: "seed",
-    },
-    {
-      nom: "Réseaux et Télécommunications",
-      description: "Programme axé sur les infrastructures réseau et communication",
-      creerPar: "seed",
-    },
-    {
-      nom: "Génie Logiciel",
-      description: "Conception et développement d'applications complexes",
-      creerPar: "seed",
-    },
-    {
-      nom: "Intelligence Artificielle",
-      description: "Apprentissage automatique et traitement des données",
-      creerPar: "seed",
-    },
-    {
-      nom: "Cybersécurité",
-      description: "Sécurité des systèmes et protection des données",
-      creerPar: "seed",
-    }
-  ]
-
-  for (const programme of programmes) {
-    await prisma.programme.upsert({
-      where: { nom: programme.nom },
-      update: {},
-      create: programme,
-    })
-  }
   console.log("Seeding programmes...");
+
+const programmes = [
+  {
+    nom: "Programmation informatique",
+    description: "Programme de développement logiciel et systèmes informatiques",
+    creerPar: "system",
+  },
+  {
+    nom: "Réseaux et Télécommunications",
+    description: "Programme axé sur les infrastructures réseau et communication",
+    creerPar: "system",
+  },
+  {
+    nom: "Génie Logiciel",
+    description: "Conception et développement d'applications complexes",
+    creerPar: "system",
+  },
+  {
+    nom: "Intelligence Artificielle",
+    description: "Apprentissage automatique et traitement des données",
+    creerPar: "system",
+  },
+  {
+    nom: "Cybersécurité",
+    description: "Sécurité des systèmes et protection des données",
+    creerPar: "system",
+  },
+];
+
+const programmesList = [];
+
+for (const programme of programmes) {
+  const createdProgramme = await prisma.programme.upsert({
+    where: { nom: programme.nom },
+    update: {
+      description: programme.description,
+      modifierPar: "system",
+      modifierLe: new Date(),
+    },
+    create: {
+      ...programme,
+      creerLe: new Date(),
+    },
+  });
+
+  programmesList.push(createdProgramme);
+}
+
+/*
+===========================
+SEED COURS_PROGRAMMES
+===========================
+*/
+console.log("Seeding cours_programmes...");
+
+for (let i = 0; i < coursList.length; i++) {
+  const cours = coursList[i];
+  const programme = programmesList[i % programmesList.length];
+
+  if (!cours || !programme) continue;
+
+  await prisma.cours_Programme.upsert({
+    where: {
+      coursId_programmeId: {
+        coursId: cours.id,
+        programmeId: programme.id,
+      },
+    },
+    update: {},
+    create: {
+      coursId: cours.id,
+      programmeId: programme.id,
+      creerPar: "system",
+      creerLe: new Date(),
+    },
+  });
+}
 
   const debugPlages = await prisma.plageHoraire.findMany();
 
