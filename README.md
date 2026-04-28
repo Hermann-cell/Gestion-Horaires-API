@@ -286,7 +286,8 @@ La conception d'une API REST évolutive
   LinkedIn : 
 
 # 📜 Licence
-Ce projet est sous licence MIT.
+Ce projet est sous licence propriétaire.
+Voir le fichier LICENSE pour plus d’informations.
 
 ## Show your support
 Give a ⭐️ if this project helped you!

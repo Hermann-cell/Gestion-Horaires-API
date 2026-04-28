@@ -105,7 +105,7 @@ model Cours {
 
 model Programme {
   id          Int     @id @default(autoincrement())
-  nom         String
+  nom         String  @unique
   description String?
 
   cours_programmes Cours_Programme[]
@@ -200,7 +200,8 @@ model Disponibilite {
   supprimeLe  DateTime?
 
   @@map("Disponibilite")
-  @@unique([professeurId, jour]) // un jour unique par prof
+
+  @@index([professeurId, jour])
 }
 
 model Seance {
@@ -229,12 +230,13 @@ model Seance {
 
   @@map("Seance")
   @@unique([professeurId, date, plageHoraireId])
+  @@unique([date, plageHoraireId, salleId])
 }
 
 model PlageHoraire {
   id          Int      @id @default(autoincrement())
-  heure_debut DateTime
-  heure_fin   DateTime
+  heure_debut Int      // 8-22 (heure du jour)
+  heure_fin   Int      // 9-23 (heure du jour)
   statut      Boolean  @default(false)
 
   seances Seance[]
@@ -251,6 +253,7 @@ model PlageHoraire {
 
   @@unique([heure_debut, heure_fin]) // pas de doublon
   @@map("PlageHoraire")
+  
 }
 
 model Cours_Programme {
@@ -262,7 +265,6 @@ model Cours_Programme {
   programmeId Int       @map("programme_id")
   programme   Programme @relation(fields: [programmeId], references: [id])
 
-  // Champs de traçabilité
   creerPar    String?
   modifierPar String?
   supprimePar String?
@@ -270,6 +272,7 @@ model Cours_Programme {
   modifierLe  DateTime? @updatedAt
   supprimeLe  DateTime?
 
+  @@unique([coursId, programmeId])
   @@map("Cours_Programme")
 }
 

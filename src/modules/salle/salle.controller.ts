@@ -42,8 +42,10 @@ export async function createSalleController(
   try {
     const newSalle = await createSalle(request.server, request.body);
     return reply.code(201).send(newSalle);
-  } catch (err) {
-    return reply.code(400).send({ message: "Erreur lors de la création de la salle", error: err });
+  } catch (err: any) {
+    return reply.code(400).send({
+      message: err.message || "Erreur lors de la création de la salle"
+    });
   }
 }
 
@@ -57,8 +59,8 @@ export async function editSalle(
   try {
     const updatedSalle = await updateSalle(request.server, id, request.body ?? {});
     return reply.send(updatedSalle);
-  } catch (err) {
-    return reply.code(400).send({ message: "Erreur lors de la modification", error: err });
+  } catch (err: any ) {
+    return reply.code(400).send({ message: err.message || "Erreur lors de la modification"});
   }
 }
 
@@ -71,7 +73,7 @@ export async function deleteSalleController(
   try {
     await deleteSalle(request.server, id);
     return reply.code(204).send();
-  } catch (err) {
-    return reply.code(400).send({ message: "Erreur lors de la suppression", error: err });
+  } catch (err: any) {
+    return reply.code(400).send({ message: err.message || "Erreur lors de la suppression" });
   }
 }

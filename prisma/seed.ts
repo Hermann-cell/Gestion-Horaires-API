@@ -285,42 +285,39 @@ async function main() {
   ===========================
   */
   console.log("Seeding plages horaires...");
+  /*
+  ===========================
+  SEED PLAGES HORAIRES (FIX)
+  ===========================
+  */
+  console.log("Seeding plages horaires...");
 
-  let plages = await prisma.plageHoraire.findMany();
+  //  Reset propre (recommandé en seed)
+  await prisma.seance.deleteMany();
+  await prisma.plageHoraire_Disponibilite.deleteMany();
+  await prisma.plageHoraire.deleteMany();
 
-  if (!plages.length) {
-    console.log("Création de plages horaires globales...");
-    const plageTemplates = [
-      { debut: "08:00", fin: "09:30" },
-      { debut: "09:45", fin: "11:15" },
-      { debut: "11:30", fin: "13:00" },
-      { debut: "14:00", fin: "15:30" },
-    ];
+  const plages = [];
 
-    for (const p of plageTemplates) {
-      const partsD = p.debut.split(":");
-      const hD = Number(partsD[0]) || 0;
-      const mD = Number(partsD[1]) || 0;
-      const partsF = p.fin.split(":");
-      const hF = Number(partsF[0]) || 0;
-      const mF = Number(partsF[1]) || 0;
-
-      const heureDebut = new Date();
-      heureDebut.setHours(hD, mD, 0, 0);
-
-      const heureFin = new Date();
-      heureFin.setHours(hF, mF, 0, 0);
-
-      await prisma.plageHoraire.upsert({
-        where: { heure_debut_heure_fin: { heure_debut: heureDebut, heure_fin: heureFin } },
-        update: {},
-        create: { heure_debut: heureDebut, heure_fin: heureFin, creerPar: "system" },
-      });
+  for (let heure = 8; heure < 22; heure++) {
+    if (heure >= heure + 1) {
+      throw new Error("Plage horaire invalide");
     }
 
-    // rechargement pour utiliser dans les disponibilités
-    plages = await prisma.plageHoraire.findMany();
+    const pl = await prisma.plageHoraire.create({
+      data: {
+        heure_debut: heure,
+        heure_fin: heure + 1,
+        creerPar: "system",
+        creerLe: new Date(),
+      },
+    });
+
+    plages.push(pl);
   }
+
+  console.log(` ${plages.length} plages horaires créées`);
+
 
   /*
   ===========================
@@ -363,108 +360,289 @@ async function main() {
   SEED DISPONIBILITES PAR PROF
   ===========================
   */
-  console.log("Seeding disponibilites par prof...");
+  // console.log("Seeding disponibilites par prof...");
 
-  for (const prof of profs) {
-    const jours = ["Lundi", "Mardi"];
-    for (let i = 0; i < jours.length; i++) {
-      const jour = jours[i]!;
+  // for (const prof of profs) {
+  //   const jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
+  //   for (let i = 0; i < jours.length; i++) {
+  //     const jour = jours[i]!;
 
-      // Création d'une dispo par professeur et par jour
-      const dispo = await prisma.disponibilite.upsert({
-        where: { professeurId_jour: { professeurId: prof.id, jour } },
-        update: {},
-        create: { professeurId: prof.id, jour, creerPar: "system" },
-      });
+  //     // Création d'une dispo par professeur et par jour
+  //     const dispo = await prisma.disponibilite.upsert({
+  //       where: { professeurId_jour: { professeurId: prof.id, jour } },
+  //       update: {},
+  //       create: { professeurId: prof.id, jour, creerPar: "system" },
+  //     });
 
-      // Lien dispo ↔ plages horaires
-      for (const pl of plages) {
-        await prisma.plageHoraire_Disponibilite.upsert({
-          where: { plageHoraireId_disponibiliteId: { plageHoraireId: pl.id, disponibiliteId: dispo.id } },
-          update: {},
-          create: { plageHoraireId: pl.id, disponibiliteId: dispo.id, creerPar: "system" },
-        });
-      }
-    }
-  }
+  //     // Lien dispo ↔ plages horaires
+  //     for (const pl of plages) {
+  //       await prisma.plageHoraire_Disponibilite.upsert({
+  //         where: { plageHoraireId_disponibiliteId: { plageHoraireId: pl.id, disponibiliteId: dispo.id } },
+  //         update: {},
+  //         create: { plageHoraireId: pl.id, disponibiliteId: dispo.id, creerPar: "system" },
+  //       });
+  //     }
+  //   }
+  // }
+  // /*
+  // ===========================
+  // SEED SEANCES AVEC PROF
+  // ===========================
+  // */
+  // console.log("Seeding seances avec prof...");
+
+  // function getNextDateForDay(targetDay: string): Date {
+  //   const daysMap: Record<string, number> = {
+  //     Dimanche: 0,
+  //     Lundi: 1,
+  //     Mardi: 2,
+  //     Mercredi: 3,
+  //     Jeudi: 4,
+  //     Vendredi: 5,
+  //     Samedi: 6,
+  //   };
+
+  //   const today = new Date();
+  //   const target = daysMap[targetDay];
+
+  //   if (target === undefined) {
+  //     throw new Error(`Jour invalide: ${targetDay}`);
+  //   }
+
+  //   const result = new Date(today);
+  //   const diff = (target - result.getDay() + 7) % 7;
+
+  //   result.setDate(result.getDate() + diff);
+  //   result.setHours(0, 0, 0, 0);
+
+  //   return result;
+  // }
+
+  // /*
+  // ===========================
+  // SEED SEANCES AVEC PROF (FIX)
+  // ===========================
+  // */
+  // console.log("Seeding seances avec prof...");
+
+  // const allSalles = await prisma.salle.findMany();
+
+  // if (!allSalles.length) {
+  //   throw new Error("Aucune salle disponible");
+  // }
+
+  // for (let i = 0; i < profs.length; i++) {
+  //   const prof = profs[i];
+  //   if (!prof) continue;
+
+  //   const cours = coursList[i % coursList.length];
+  //   if (!cours) continue;
+
+  //   const dispoProf = await prisma.disponibilite.findMany({
+  //     where: { professeurId: prof.id },
+  //     include: {
+  //       plageHoraire_Disponibilites: {
+  //         include: { plageHoraire: true },
+  //       },
+  //     },
+  //   });
+
+  //   if (!dispoProf.length) continue;
+
+  //   for (let j = 0; j < 3; j++) {
+  //     const dispo = dispoProf[j % dispoProf.length];
+  //     if (!dispo) continue;
+
+  //     // ✅ Plages liées à CE jour uniquement
+  //     const plagesDispo = dispo.plageHoraire_Disponibilites.map(
+  //       (p) => p.plageHoraire
+  //     );
+
+  //     if (!plagesDispo.length) continue;
+
+  //     const pl = plagesDispo[j % plagesDispo.length];
+  //     const salle = allSalles[j % allSalles.length];
+
+  //     if (!pl || !salle) continue;
+
+  //     // ✅ Date cohérente + décalage pour éviter conflits
+  //     const baseDate = getNextDateForDay(dispo.jour);
+  //     const date = new Date(baseDate);
+  //     date.setDate(baseDate.getDate() + j); // 🔥 évite collision
+
+  //     // 🔒 Vérifier conflit PROF
+  //     const profConflict = await prisma.seance.findFirst({
+  //       where: {
+  //         professeurId: prof.id,
+  //         date,
+  //         plageHoraireId: pl.id,
+  //       },
+  //     });
+
+  //     // 🔒 Vérifier conflit SALLE
+  //     const salleConflict = await prisma.seance.findFirst({
+  //       where: {
+  //         salleId: salle.id,
+  //         date,
+  //         plageHoraireId: pl.id,
+  //       },
+  //     });
+
+  //     if (profConflict || salleConflict) continue;
+
+  //     await prisma.seance.create({
+  //       data: {
+  //         date,
+  //         coursId: cours.id,
+  //         salleId: salle.id,
+  //         plageHoraireId: pl.id,
+  //         professeurId: prof.id,
+  //         creerPar: "system",
+  //         creerLe: new Date(),
+  //       },
+  //     });
+
+  //     console.log(
+  //       ` Séance créée: Prof ${prof.id} | ${dispo.jour}   | ${pl.heure_debut}h-${pl.heure_fin}h | Salle ${salle.code}`
+  //     );
+  //   }
+  // }
+
+  // /*
+  // ===========================
+  // SEED SEANCES SANS PROF
+  // ===========================
+  // */
+  // console.log("Seeding seances sans prof...");
+
+
+  // for (let i = 0; i < 5; i++) {
+  //   const cours = coursList[i % coursList.length];
+  //   const salle = allSalles[i % allSalles.length];
+  //   const pl = plages[i % plages.length];
+
+  //   if (!cours || !salle || !pl) continue;
+
+  //   const date = new Date();
+  //   date.setHours(0, 0, 0, 0);
+  //   date.setDate(date.getDate() + i + 100);
+
+  //   const conflict = await prisma.seance.findFirst({
+  //     where: {
+  //       date,
+  //       plageHoraireId: pl.id,
+  //       salleId: salle.id,
+  //     },
+  //   });
+
+  //   if (conflict) continue;
+
+  //   await prisma.seance.create({
+  //     data: {
+  //       date,
+  //       coursId: cours.id,
+  //       salleId: salle.id,
+  //       plageHoraireId: pl.id,
+  //       professeurId: null,
+  //       creerPar: "system",
+  //       creerLe: new Date(),
+  //     },
+  //   });
+
+  //   console.log(` Séance sans prof créée → ${date.toDateString()}`);
+  // }
+
   /*
-  ===========================
-  SEED SEANCES AVEC PROF
-  ===========================
-  */
-  console.log("Seeding seances avec prof...");
+===========================
+SEED PROGRAMME
+===========================
+*/
+  console.log("Seeding programmes...");
 
-  const allSalles = await prisma.salle.findMany();
+const programmes = [
+  {
+    nom: "Programmation informatique",
+    description: "Programme de développement logiciel et systèmes informatiques",
+    creerPar: "system",
+  },
+  {
+    nom: "Réseaux et Télécommunications",
+    description: "Programme axé sur les infrastructures réseau et communication",
+    creerPar: "system",
+  },
+  {
+    nom: "Génie Logiciel",
+    description: "Conception et développement d'applications complexes",
+    creerPar: "system",
+  },
+  {
+    nom: "Intelligence Artificielle",
+    description: "Apprentissage automatique et traitement des données",
+    creerPar: "system",
+  },
+  {
+    nom: "Cybersécurité",
+    description: "Sécurité des systèmes et protection des données",
+    creerPar: "system",
+  },
+];
 
-  if (!allSalles.length) {
-    throw new Error("Pas de salles");
-  }
+const programmesList = [];
 
-  for (let i = 0; i < profs.length; i++) {
-    const prof = profs[i];
-    if (!prof) continue;
-    const cours = coursList[i % coursList.length];
-    if (!cours) continue;
+for (const programme of programmes) {
+  const createdProgramme = await prisma.programme.upsert({
+    where: { nom: programme.nom },
+    update: {
+      description: programme.description,
+      modifierPar: "system",
+      modifierLe: new Date(),
+    },
+    create: {
+      ...programme,
+      creerLe: new Date(),
+    },
+  });
 
-    const dispoProf = await prisma.disponibilite.findMany({
-      where: { professeurId: prof.id },
-      include: { plageHoraire_Disponibilites: { include: { plageHoraire: true } } },
-    });
+  programmesList.push(createdProgramme);
+}
 
-    let plagesProf = dispoProf.flatMap(d => d.plageHoraire_Disponibilites.map(p => p.plageHoraire));
-    if (!plagesProf.length) plagesProf = plages;
+/*
+===========================
+SEED COURS_PROGRAMMES
+===========================
+*/
+console.log("Seeding cours_programmes...");
 
-    for (let j = 0; j < 3; j++) {
-      const pl = plagesProf[j % plagesProf.length];
-      const salle = allSalles[j % allSalles.length];
-      if (!pl || !salle) continue;
+for (let i = 0; i < coursList.length; i++) {
+  const cours = coursList[i];
+  const programme = programmesList[i % programmesList.length];
 
-      const date = new Date();
-      date.setHours(0, 0, 0, 0);
-      date.setDate(date.getDate() + j + i * 3);
+  if (!cours || !programme) continue;
 
-      const exists = await prisma.seance.findFirst({
-        where: { coursId: cours.id, professeurId: prof.id, plageHoraireId: pl.id, date },
-      });
+  await prisma.cours_Programme.upsert({
+    where: {
+      coursId_programmeId: {
+        coursId: cours.id,
+        programmeId: programme.id,
+      },
+    },
+    update: {},
+    create: {
+      coursId: cours.id,
+      programmeId: programme.id,
+      creerPar: "system",
+      creerLe: new Date(),
+    },
+  });
+}
 
-      if (!exists) {
-        await prisma.seance.create({
-          data: { date, coursId: cours.id, salleId: salle.id, plageHoraireId: pl.id, professeurId: prof.id, creerPar: "system" },
-        });
-        console.log(`Création séance prof ${prof.id} → ${date.toDateString()}`);
-      }
-    }
-  }
+  const debugPlages = await prisma.plageHoraire.findMany();
 
-  /*
-  ===========================
-  SEED SEANCES SANS PROF
-  ===========================
-  */
-  console.log("Seeding seances sans prof...");
+  console.log("DEBUG PLAGES:");
+  debugPlages.forEach(p => {
+    console.log(p.heure_debut, "→", p.heure_fin);
+  });
 
-  for (let i = 0; i < 5; i++) {
-    const cours = coursList[i % coursList.length];
-    const salle = allSalles[i % allSalles.length];
-    const pl = plages[i % plages.length];
-    if (!cours || !salle || !pl) continue;
-
-    const date = new Date();
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + i + 100);
-
-    const exists = await prisma.seance.findFirst({
-      where: { coursId: cours.id, professeurId: null, plageHoraireId: pl.id, date },
-    });
-
-    if (!exists) {
-      await prisma.seance.create({
-        data: { date, coursId: cours.id, salleId: salle.id, plageHoraireId: pl.id, professeurId: null, creerPar: "system" },
-      });
-      console.log(`Création séance sans prof → ${date.toDateString()}`);
-    }
-  }
-  
   console.log("Seed completed successfully !");
 }
 

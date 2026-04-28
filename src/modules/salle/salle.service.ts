@@ -53,9 +53,12 @@ export async function createSalle(app: FastifyInstance, data: CreateSallePayload
     },
   });
 
+  console.log("Existing salle check:", { code: data.code, existingSalle });
+
   if (existingSalle) {
     throw new Error("Une salle avec ce code existe déjà");
   }
+
 
   return app.prisma.salle.create({
     data: {

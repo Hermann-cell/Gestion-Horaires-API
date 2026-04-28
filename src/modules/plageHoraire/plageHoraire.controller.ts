@@ -15,13 +15,13 @@ type PlageHoraireParams = {
 };
 
 type CreatePlageHoraireBody = {
-  heureDebut: string;
-  heureFin: string;
+  heureDebut: string | number;  // "08:00" ou 8
+  heureFin: string | number;     // "09:00" ou 9
 };
 
 type UpdatePlageHoraireBody = {
-  heureDebut?: string;
-  heureFin?: string;
+  heureDebut?: string | number;
+  heureFin?: string | number;
 };
 
 function parseId(id: string): number | null {
@@ -42,20 +42,26 @@ function isValidHourFormat(value: string): boolean {
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value);
 }
 
-function hourStringToDate(value: string): Date {
-  const parts = value.split(":");
-
-  if (parts.length !== 2) {
-    throw new Error("Format d'heure invalide");
+function parseHourToInt(value: string | number): number {
+  if (typeof value === "number") {
+    const h = Math.floor(value);
+    if (h < 8 || h > 22) {
+      throw new Error("L'heure doit être entre 8 et 22");
+    }
+    return h;
   }
 
-  const hours = Number(parts[0]);
-  const minutes = Number(parts[1]);
+  // Format "HH:mm" → entier heure
+  if (!isValidHourFormat(value)) {
+    throw new Error("Format d'heure invalide (HH:mm attendu)");
+  }
 
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
+  const hours = Number(value.split(":")[0]);
+  if (hours < 8 || hours > 22) {
+    throw new Error("L'heure doit être entre 8h et 22h");
+  }
 
-  return date;
+  return hours;
 }
 
 /*
@@ -83,18 +89,18 @@ export async function createPlageHoraireController(
       });
     }
 
-    const heureDebutDate = hourStringToDate(heureDebut);
-    const heureFinDate = hourStringToDate(heureFin);
+    const heureDebutInt = parseHourToInt(heureDebut);
+    const heureFinInt = parseHourToInt(heureFin);
 
-    if (heureDebutDate >= heureFinDate) {
+    if (heureDebutInt >= heureFinInt) {
       return reply.code(400).send({
         message: "L'heure de début doit être inférieure à l'heure de fin",
       });
     }
 
     const payload: CreatePlageHorairePayload = {
-      heureDebut: heureDebutDate,
-      heureFin: heureFinDate,
+      heureDebut: heureDebutInt,
+      heureFin: heureFinInt,
     };
 
     const result = await createPlageHoraire(request.server, payload);
@@ -207,7 +213,7 @@ export async function editPlageHoraireController(
       });
     }
 
-    payload.heureDebut = hourStringToDate(heureDebut);
+    payload.heureDebut = parseHourToInt(body.heureDebut);
   }
 
   if (body.heureFin !== undefined) {
@@ -225,7 +231,8 @@ export async function editPlageHoraireController(
       });
     }
 
-    payload.heureFin = hourStringToDate(heureFin);
+    payload.heureFin = parseHourToInt(body.heureFin);
+
   }
 
   const existing = await getPlageHoraireById(request.server, id);
