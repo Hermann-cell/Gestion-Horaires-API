@@ -6,10 +6,12 @@
 
 */
 -- AlterTable
-ALTER TABLE "PlageHoraire" DROP COLUMN "heure_debut",
-ADD COLUMN     "heure_debut" INTEGER NOT NULL,
+ALTER TABLE "PlageHoraire" 
+DROP COLUMN "heure_debut",
 DROP COLUMN "heure_fin",
-ADD COLUMN     "heure_fin" INTEGER NOT NULL;
+ADD COLUMN "heure_debut" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "heure_fin" INTEGER NOT NULL DEFAULT 0;
 
 -- CreateIndex
-CREATE UNIQUE INDEX "PlageHoraire_heure_debut_heure_fin_key" ON "PlageHoraire"("heure_debut", "heure_fin");
+CREATE UNIQUE INDEX "PlageHoraire_heure_debut_heure_fin_key" 
+ON "PlageHoraire"("heure_debut", "heure_fin");
