@@ -44,6 +44,10 @@ function formatHour(date: Date): string {
   });
 }
 
+function formatHourInt(hour: number): string {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
 export async function getDashboardStats(app: FastifyInstance) {
   const seanceInclude = {
     cours: true,
@@ -162,8 +166,9 @@ export async function getDashboardStats(app: FastifyInstance) {
         return dateB - dateA;
       }
 
-      const heureA = new Date(a.plageHoraire.heure_debut).getTime();
-      const heureB = new Date(b.plageHoraire.heure_debut).getTime();
+      // Les heures sont maintenant des INT (8-22)
+      const heureA = a.plageHoraire.heure_debut;
+      const heureB = b.plageHoraire.heure_debut;
 
       return heureB - heureA;
     })
@@ -202,8 +207,8 @@ export async function getDashboardStats(app: FastifyInstance) {
       professeur: seance.professeur
         ? `${seance.professeur.prenom} ${seance.professeur.nom ?? ""}`.trim()
         : null,
-      heureDebut: formatHour(seance.plageHoraire.heure_debut),
-      heureFin: formatHour(seance.plageHoraire.heure_fin),
+      heureDebut: formatHourInt(seance.plageHoraire.heure_debut),
+      heureFin: formatHourInt(seance.plageHoraire.heure_fin),
       typeSalle: seance.salle.typeDeSalle.nom,
     })),
   };

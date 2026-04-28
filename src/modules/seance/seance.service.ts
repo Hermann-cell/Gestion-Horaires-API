@@ -40,6 +40,12 @@ const seanceInclude = {
   plageHoraire: true,
 } as const;
 
+function normalizeDate(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 /*
 ================================
 API SERVICE : CREATE SEANCE
@@ -72,8 +78,10 @@ export async function createSeance(
     throw new Error("La salle sélectionnée n'est pas compatible avec le type requis pour ce cours");
   }
 
+  const normalizedDate = normalizeDate(data.date);
+
   const salleConflict = await findSalleConflict(app, {
-    date: data.date,
+    date: normalizedDate,
     salleId: data.salleId,
     plageHoraireId: data.plageHoraireId,
   });
@@ -118,7 +126,7 @@ export async function createSeance(
     }
 
     const professeurConflict = await findProfesseurConflict(app, {
-      date: data.date,
+      date: normalizedDate,
       professeurId: data.professeurId,
       plageHoraireId: data.plageHoraireId,
     });
@@ -130,7 +138,7 @@ export async function createSeance(
 
   return app.prisma.seance.create({
     data: {
-      date: data.date,
+      date: normalizedDate,
       coursId: data.coursId,
       salleId: data.salleId,
       plageHoraireId: data.plageHoraireId,
@@ -189,7 +197,7 @@ export async function updateSeance(
     throw new Error("Séance introuvable ou déjà supprimée");
   }
 
-  const finalDate = data.date ?? seance.date;
+  const finalDate = normalizeDate(data.date ?? seance.date);
   const finalCoursId = data.coursId ?? seance.coursId;
   const finalSalleId = data.salleId ?? seance.salleId;
   const finalPlageHoraireId = data.plageHoraireId ?? seance.plageHoraireId;
@@ -280,7 +288,7 @@ export async function updateSeance(
   return app.prisma.seance.update({
     where: { id },
     data: {
-      ...("date" in data ? { date: data.date } : {}),
+      ...("date" in data ? { date: normalizeDate(data.date!) } : {}),
       ...("coursId" in data ? { coursId: data.coursId } : {}),
       ...("salleId" in data ? { salleId: data.salleId } : {}),
       ...("plageHoraireId" in data ? { plageHoraireId: data.plageHoraireId } : {}),
@@ -410,7 +418,10 @@ export async function findSalleConflict(
   return app.prisma.seance.findFirst({
     where: {
       supprimeLe: null,
-      date: params.date,
+      date: {
+        gte: new Date(new Date(params.date).setHours(0, 0, 0, 0)),
+        lt: new Date(new Date(params.date).setHours(23, 59, 59, 999)),
+      },
       salleId: params.salleId,
       plageHoraireId: params.plageHoraireId,
       ...(params.excludeSeanceId !== undefined
@@ -419,6 +430,7 @@ export async function findSalleConflict(
     },
   });
 }
+
 
 /*
 ================================
@@ -437,7 +449,10 @@ export async function findProfesseurConflict(
   return app.prisma.seance.findFirst({
     where: {
       supprimeLe: null,
-      date: params.date,
+      date: {
+        gte: new Date(new Date(params.date).setHours(0, 0, 0, 0)),
+        lt: new Date(new Date(params.date).setHours(23, 59, 59, 999)),
+      },
       professeurId: params.professeurId,
       plageHoraireId: params.plageHoraireId,
       ...(params.excludeSeanceId !== undefined

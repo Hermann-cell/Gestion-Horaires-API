@@ -2,14 +2,18 @@ import { FastifyInstance } from "fastify";
 import { Prisma } from "@prisma/client";
 
 export type CreatePlageHorairePayload = {
-  heureDebut: Date;
-  heureFin: Date;
+  heureDebut: number;  // 8-22
+  heureFin: number;    // 9-23
 };
 
 export type UpdatePlageHorairePayload = {
-  heureDebut?: Date;
-  heureFin?: Date;
+  heureDebut?: number;  // 8-22
+  heureFin?: number;    // 9-23
 };
+
+function formatTime(hour: number): string {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
 
 export async function getAllPlageHoraires(app: FastifyInstance) {
   return app.prisma.plageHoraire.findMany({
@@ -51,23 +55,18 @@ export async function createPlageHoraire(
     throw new Error("Cette plage horaire existe déjà");
   }
 
-  // 🔥 NOUVEAU: Vérifier les chevauchements partiels
+  // Vérifier les chevauchements partiels
   const overlappingPlage = await app.prisma.plageHoraire.findFirst({
     where: {
       supprimeLe: null,
       AND: [
-        {
-          heure_debut: { lt: data.heureFin }  // début existant < fin nouvelle
-        },
-        {
-          heure_fin: { gt: data.heureDebut }  // fin existant > début nouveau
-        }
+        { heure_debut: { lt: data.heureFin } },  // début existant < fin nouvelle
+        { heure_fin: { gt: data.heureDebut } }   // fin existant > début nouveau
       ]
     },
   });
 
   if (overlappingPlage) {
-    const formatTime = (d: Date) => d.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
     throw new Error(
       `Chevauchement détecté avec plage existante: ${formatTime(overlappingPlage.heure_debut)} - ${formatTime(overlappingPlage.heure_fin)}`
     );
@@ -100,8 +99,7 @@ export async function updatePlageHoraire(
   // Vérifier l'unicité exacte (sauf si les valeurs n'ont pas changé)
   if (
     (data.heureDebut !== undefined || data.heureFin !== undefined) &&
-    !(finalHeureDebut.getTime() === existing.heure_debut.getTime() &&
-      finalHeureFin.getTime() === existing.heure_fin.getTime())
+    !(finalHeureDebut === existing.heure_debut && finalHeureFin === existing.heure_fin)
   ) {
     const duplicateExact = await app.prisma.plageHoraire.findFirst({
       where: {
@@ -116,7 +114,7 @@ export async function updatePlageHoraire(
       throw new Error("Une plage horaire avec ces heures existe déjà");
     }
 
-    // 🔥 Vérifier les chevauchements partiels
+    // Vérifier les chevauchements partiels
     const overlappingPlage = await app.prisma.plageHoraire.findFirst({
       where: {
         supprimeLe: null,
@@ -129,7 +127,6 @@ export async function updatePlageHoraire(
     });
 
     if (overlappingPlage) {
-      const formatTime = (d: Date) => d.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
       throw new Error(
         `Chevauchement détecté avec plage existante: ${formatTime(overlappingPlage.heure_debut)} - ${formatTime(overlappingPlage.heure_fin)}`
       );

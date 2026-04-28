@@ -70,7 +70,7 @@ export async function getAllProfesseurs(app: FastifyInstance) {
 
 export async function createProfesseur(app: FastifyInstance, data: CreateProfesseurPayload) {
   const matricule = await generateNextMatricule(app);
-  
+
   return app.prisma.$transaction(async (tx) => {
     // Créer le professeur
     const prof = await tx.professeur.create({
@@ -189,14 +189,8 @@ export async function updateProfesseur(
         }
       });
 
-      // 🔥 DATE FIXE pour éviter les bugs
-      const baseDate = new Date("1970-01-01T00:00:00");
-
-      const hDebut = new Date(baseDate);
-      hDebut.setHours(parseInt(d.heure_debut), 0, 0, 0);
-
-      const hFin = new Date(baseDate);
-      hFin.setHours(parseInt(d.heure_fin), 0, 0, 0);
+      const hDebut = parseInt(d.heure_debut);
+      const hFin = parseInt(d.heure_fin);
 
       // Recherche ou création de la plage
       let plage = await tx.plageHoraire.findFirst({
@@ -328,7 +322,7 @@ export async function affecterProfesseurASeance(
     where: { id: professeurId },
     include: {
       disponibilites: {
-        where: { 
+        where: {
           jour: {
             equals: jour,
             mode: "insensitive"
@@ -353,19 +347,17 @@ export async function affecterProfesseurASeance(
     throw new Error(`Professeur non disponible le ${jour}`);
   }
 
-  // Récupération de l'heure de début de la séance (extraction robuste)
-  const heureDebut = new Date(seance.plageHoraire.heure_debut);
-  const heureSeance = heureDebut.getHours();
+  // Récupération de l'heure de début de la séance
+  const heureSeance = seance.plageHoraire.heure_debut;
 
   // Vérifier que le professeur a une disponibilité à cette heure
   const disponibiliteValide = prof.disponibilites[0]?.plageHoraire_Disponibilites?.some((ph) => {
-    const plageHeure = new Date(ph.plageHoraire.heure_debut).getHours();
-    return plageHeure === heureSeance;
+    return ph.plageHoraire.heure_debut === heureSeance;
   });
 
   if (!disponibiliteValide) {
     const heuresDisponibles = prof.disponibilites[0]?.plageHoraire_Disponibilites
-      ?.map(ph => new Date(ph.plageHoraire.heure_debut).getHours())
+      ?.map(ph => ph.plageHoraire.heure_debut)
       ?.join(", ") || "Aucune";
     throw new Error(
       `Séance à ${heureSeance}h hors disponibilité. Heures disponibles: ${heuresDisponibles}h`
