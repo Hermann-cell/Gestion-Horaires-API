@@ -200,7 +200,8 @@ model Disponibilite {
   supprimeLe  DateTime?
 
   @@map("Disponibilite")
-  @@unique([professeurId, jour]) // un jour unique par prof
+
+  @@index([professeurId, jour])
 }
 
 model Seance {

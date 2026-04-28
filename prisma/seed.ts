@@ -360,30 +360,30 @@ async function main() {
   SEED DISPONIBILITES PAR PROF
   ===========================
   */
-  console.log("Seeding disponibilites par prof...");
+  // console.log("Seeding disponibilites par prof...");
 
-  for (const prof of profs) {
-    const jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
-    for (let i = 0; i < jours.length; i++) {
-      const jour = jours[i]!;
+  // for (const prof of profs) {
+  //   const jours = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
+  //   for (let i = 0; i < jours.length; i++) {
+  //     const jour = jours[i]!;
 
-      // Création d'une dispo par professeur et par jour
-      const dispo = await prisma.disponibilite.upsert({
-        where: { professeurId_jour: { professeurId: prof.id, jour } },
-        update: {},
-        create: { professeurId: prof.id, jour, creerPar: "system" },
-      });
+  //     // Création d'une dispo par professeur et par jour
+  //     const dispo = await prisma.disponibilite.upsert({
+  //       where: { professeurId_jour: { professeurId: prof.id, jour } },
+  //       update: {},
+  //       create: { professeurId: prof.id, jour, creerPar: "system" },
+  //     });
 
-      // Lien dispo ↔ plages horaires
-      for (const pl of plages) {
-        await prisma.plageHoraire_Disponibilite.upsert({
-          where: { plageHoraireId_disponibiliteId: { plageHoraireId: pl.id, disponibiliteId: dispo.id } },
-          update: {},
-          create: { plageHoraireId: pl.id, disponibiliteId: dispo.id, creerPar: "system" },
-        });
-      }
-    }
-  }
+  //     // Lien dispo ↔ plages horaires
+  //     for (const pl of plages) {
+  //       await prisma.plageHoraire_Disponibilite.upsert({
+  //         where: { plageHoraireId_disponibiliteId: { plageHoraireId: pl.id, disponibiliteId: dispo.id } },
+  //         update: {},
+  //         create: { plageHoraireId: pl.id, disponibiliteId: dispo.id, creerPar: "system" },
+  //       });
+  //     }
+  //   }
+  // }
   // /*
   // ===========================
   // SEED SEANCES AVEC PROF
